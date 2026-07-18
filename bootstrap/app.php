@@ -45,6 +45,16 @@ if (($_ENV['VERCEL'] ?? false) || ($_ENV['APP_ENV'] ?? '') === 'production') {
             mkdir($dir, 0755, true);
         }
     }
+
+    // Copy the seeded SQLite database to /tmp so the runtime can write to it.
+    $buildDb = $app->basePath('database/database.sqlite');
+    $runtimeDb = '/tmp/database.sqlite';
+    if (! file_exists($runtimeDb) && file_exists($buildDb)) {
+        copy($buildDb, $runtimeDb);
+    }
+    putenv('DB_DATABASE='.$runtimeDb);
+    $_ENV['DB_DATABASE'] = $runtimeDb;
+    $_SERVER['DB_DATABASE'] = $runtimeDb;
 }
 
 return $app;
