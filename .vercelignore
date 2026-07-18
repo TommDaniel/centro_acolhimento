@@ -2,7 +2,11 @@
 /node_modules
 /.git
 /.env
-/.env.*
+/.env.backup
+/.env.production
+/.env.local
+!.env.example
+/bootstrap/cache/*.php
 /.idea
 /.vscode
 /.cursor
