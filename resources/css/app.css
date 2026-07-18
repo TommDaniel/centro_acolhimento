@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * O plugin @tailwindcss/forms (scaffold do Breeze) aplica borda e anel de foco
+ * em <input>/<textarea> nativos, o que desenhava um "quadrado interno" dentro
+ * dos campos do MUI. Neutralizamos isso apenas dentro dos campos MUI — os
+ * formulários legados do Breeze (login/perfil) continuam estilizados.
+ */
+.MuiInputBase-root input,
+.MuiInputBase-root textarea {
+    border-width: 0;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+.MuiInputBase-root input:focus,
+.MuiInputBase-root textarea:focus {
+    border-width: 0;
+    outline: none;
+    box-shadow: none;
+    --tw-ring-shadow: none;
+}
+
+/* ===== Agenda (FullCalendar 6) =====
+ * Polimento visual do calendário: bordas suaves, "hoje" em teal-50,
+ * botões na cor primária do tema e eventos concluídos esmaecidos/riscados.
+ */
+.fc {
+    --fc-border-color: #e2e8f0;
+    --fc-today-bg-color: #f0fdfa;
+    --fc-neutral-bg-color: #f8fafc;
+    --fc-button-bg-color: #0d9488;
+    --fc-button-border-color: #0d9488;
+    --fc-button-hover-bg-color: #0f766e;
+    --fc-button-hover-border-color: #0f766e;
+    --fc-button-active-bg-color: #115e59;
+    --fc-button-active-border-color: #115e59;
+    font-size: 0.85rem;
+}
+
+.fc .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.fc .fc-col-header-cell {
+    background: #f8fafc;
+    font-weight: 600;
+}
+
+.fc .fc-day-today {
+    background: #f0fdfa !important;
+}
+
+.fc .fc-event {
+    border-width: 0;
+    border-radius: 6px;
+    padding: 1px 4px;
+    font-size: 0.78rem;
+}
+
+.fc .fc-daygrid-dot-event:hover {
+    background: #f1f5f9;
+}
+
+.fc .fc-button {
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.fc .fc-button:focus {
+    box-shadow: none;
+}
+
+.evento-concluido {
+    opacity: 0.45;
+}
+
+.evento-concluido .fc-event-title {
+    text-decoration: line-through;
+}
