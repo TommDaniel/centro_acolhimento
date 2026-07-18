@@ -20,6 +20,7 @@
 /storage/app/public/*
 /database/*.sqlite
 /database/*.sqlite-journal
+!/database/database.sqlite
 /public/hot
 /public/storage
 .phpunit.result.cache
