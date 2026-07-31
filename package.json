@@ -35,6 +35,6 @@
         "@fullcalendar/timegrid": "^6.1.21",
         "@mui/icons-material": "^9.2.0",
         "@mui/material": "^9.2.0",
-        "framer-motion": "^12.42.2"
+        "framer-motion": "^12.43.0"
     }
 }
