@@ -1,0 +1,210 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    name: PHPUnit, build and dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: PHP 8.3
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.3'
+          extensions: dom, fileinfo, gd, mbstring, pdo_sqlite, sqlite3, zip
+          coverage: none
+
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Prepare test application key
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: Validate Composer metadata
+        run: composer validate --strict
+
+      - name: Audit PHP dependencies
+        run: composer audit --locked
+
+      - name: Audit JavaScript dependencies
+        run: npm audit --audit-level=high
+
+      - name: Check PHP formatting
+        run: vendor/bin/pint --test
+
+      - name: Run PHPUnit
+        run: php artisan test
+
+      - name: Build frontend
+        run: npm run build
+
+  postgresql:
+    name: PostgreSQL migration compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: centro_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d centro_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: PHP 8.3 with PostgreSQL
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.3'
+          extensions: dom, fileinfo, gd, mbstring, pdo_pgsql, pgsql, zip
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare isolated PostgreSQL application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: Verify all migrations on PostgreSQL
+        run: php artisan migrate:fresh --force
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: centro_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+
+      - name: Run Feature tests on PostgreSQL
+        run: php artisan test --testsuite=Feature
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: centro_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: PHP 8.3
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.3'
+          extensions: dom, fileinfo, gd, mbstring, pdo_sqlite, sqlite3, zip
+          coverage: none
+
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Prepare isolated E2E application
+        run: |
+          cp .env.example .env
+          touch database/database.sqlite
+          php artisan key:generate
+          php artisan migrate:fresh --seed --force
+          npm run build
+        env:
+          APP_ENV: testing
+          APP_URL: http://127.0.0.1:8000
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+          SESSION_DRIVER: file
+
+      - name: Start application
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/e2e-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/login > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat storage/logs/e2e-server.log
+          exit 1
+        env:
+          APP_ENV: testing
+          APP_URL: http://127.0.0.1:8000
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+          SESSION_DRIVER: file
+
+      - name: Run Playwright
+        run: npm run test:e2e
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
+
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-evidence
+          path: |
+            playwright-report/
+            test-results/
+            storage/logs/e2e-server.log
+          if-no-files-found: ignore
+          retention-days: 7

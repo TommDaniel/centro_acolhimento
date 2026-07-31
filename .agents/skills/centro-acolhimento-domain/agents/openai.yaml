@@ -1,0 +1,4 @@
+interface:
+  display_name: "Domínio do Centro de Acolhimento"
+  short_description: "Regras seguras para acolhimento institucional"
+  default_prompt: "Use $centro-acolhimento-domain para implementar esta tarefa respeitando regras de domínio, segurança e testes."
