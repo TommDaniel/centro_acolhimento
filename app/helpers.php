@@ -17,6 +17,7 @@ if (! function_exists('dataPorExtensoPtBr')) {
         $carbon = $data instanceof DateTimeInterface
             ? Carbon::instance($data)
             : Carbon::parse($data);
+        $carbon = $carbon->setTimezone('America/Sao_Paulo');
 
         $meses = [
             1 => 'janeiro', 2 => 'fevereiro', 3 => 'março', 4 => 'abril',

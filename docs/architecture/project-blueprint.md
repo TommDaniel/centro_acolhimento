@@ -114,7 +114,7 @@ O detalhamento técnico está no [modelo de ameaças](../../SECURITY_THREAT_MODE
 | Risco | Severidade/status | Gate para controle |
 |---|---|---|
 | Cadastro público GET/POST | CONTROLADO por `SEG-01A` em 26/08/2026 | rotas ausentes; PHPUnit 6/6 (14 assertivas) e E2E desktop/mobile 6/6; manter regressão GET/POST; `SEG-01` segue aberto para Fortify/TOTP/lifecycle |
-| SQLite efêmero e deploy com reset/seed | BLOCKER aberto | `ARQ-01/03`, migration roll-forward, PostgreSQL e restore |
+| SQLite efêmero e deploy com reset/seed | Controlado em local/CI por `ARQ-01A`; produção bloqueada | `ARQ-01/03/07`, PostgreSQL produtivo, migrations roll-forward e restore |
 | Fotos/documentos públicos | BLOCKER aberto | `ARQ-02`, `SEG-05/07`, Policy e download privado testado |
 | Acesso amplo sem Policies/auditoria | BLOCKER aberto | `SEG-02/03`, teste IDOR/negação e trilha minimizada |
 | Exclusão/cascata e histórico mutável | HIGH aberto | constraints, eventos/versões append-only e retenção aprovada |

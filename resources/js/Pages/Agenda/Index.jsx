@@ -53,6 +53,9 @@ const horaLocal = (iso) => (iso
     ? new Date(iso).toLocaleTimeString('pt-BR', { timeZone: FUSO, hour: '2-digit', minute: '2-digit', hour12: false })
     : null);
 
+/** ISO (UTC) → datetime sem fuso com o relógio civil da unidade para o FullCalendar. */
+const dataHoraIsoLocal = (iso) => (iso ? `${dataIsoLocal(iso)}T${horaLocal(iso)}:00` : undefined);
+
 /** Resumo "17/07/2026 · 09:00" (ou "Dia inteiro") usado nas listas e no detalhe. */
 function resumoDataHora(ev) {
     const data = dataLocal(ev.inicio);
@@ -129,7 +132,7 @@ export default function Index({ eventos, criancas, tipos }) {
         e.preventDefault();
         const d = form.data;
         const inicio = d.dia_inteiro
-            ? `${d.data}T00:00:00`
+            ? d.data
             : `${d.data}T${d.hora_inicio || '00:00'}:00`;
         const fim = !d.dia_inteiro && d.hora_fim ? `${d.data}T${d.hora_fim}:00` : null;
 
@@ -175,8 +178,8 @@ export default function Index({ eventos, criancas, tipos }) {
             id: String(ev.id),
             title: ev.titulo,
             // Dia inteiro: data pura evita deslocamento de fuso no FullCalendar.
-            start: ev.dia_inteiro ? dataIsoLocal(ev.inicio) : ev.inicio,
-            end: ev.fim ?? undefined,
+            start: ev.dia_inteiro ? dataIsoLocal(ev.inicio) : dataHoraIsoLocal(ev.inicio),
+            end: ev.fim ? dataHoraIsoLocal(ev.fim) : undefined,
             allDay: ev.dia_inteiro,
             backgroundColor: cor,
             borderColor: cor,
@@ -184,9 +187,9 @@ export default function Index({ eventos, criancas, tipos }) {
         };
     });
 
-    const inicioHoje = new Date(new Date().toDateString());
+    const inicioHoje = dataIsoLocal(new Date());
     const proximos = eventos
-        .filter((ev) => !ev.concluido && new Date(ev.inicio) >= inicioHoje)
+        .filter((ev) => !ev.concluido && dataIsoLocal(ev.inicio) >= inicioHoje)
         .sort((a, b) => new Date(a.inicio) - new Date(b.inicio))
         .slice(0, 10);
 

@@ -8,6 +8,7 @@ use App\Models\Pertence;
 use App\Models\Pia;
 use App\Models\Report;
 use App\Models\VisitaTecnica;
+use Carbon\CarbonImmutable;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -45,7 +46,7 @@ class DashboardController extends Controller
 
         $proximosEventos = Evento::with('crianca:id,nome_completo')
             ->where('concluido', false)
-            ->where('inicio', '>=', now()->startOfDay())
+            ->where('inicio', '>=', CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->utc())
             ->orderBy('inicio')
             ->take(8)
             ->get();

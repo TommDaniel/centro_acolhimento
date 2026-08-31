@@ -59,8 +59,7 @@ Transformar a POC em um sistema de produção seguro e auditável que:
 ### Bloqueadores para dados reais
 
 - O README identifica a aplicação como POC sem segurança de produção e destinada apenas a dados fictícios.
-- O deploy usa SQLite copiado para `/tmp`; em ambiente serverless isso é efêmero e pode gerar perda ou divergência de dados entre instâncias.
-- O script de deploy executa `migrate:fresh --seed`, recriando o banco e inserindo usuários/dados fictícios.
+- `ARQ-01A` isolou o bootstrap SQLite efêmero e o reset sintético exclusivamente no runtime legado `VERCEL`; local/CI usam PostgreSQL. A remoção ocorre no cutover Contabo. A implantação PostgreSQL definitiva, com TLS, roles mínimas, backup/PITR e restore, continua bloqueada em `ARQ-01/03/07`.
 - Fotos e documentos são gravados no disco `public` e expostos por URL; não há autorização no download, expiração de link, varredura antimalware ou armazenamento durável no deploy atual.
 - Cadastro público GET/POST: **CONTROLADO por `SEG-01A` em 26/08/2026**; as rotas estão ausentes e PHPUnit/E2E desktop e mobile provaram a negação direta e a preservação do login. `SEG-01` permanece aberto para Fortify/TOTP, lifecycle, recuperação e revogação de sessões.
 - O acesso é amplo: qualquer usuário autenticado visualiza toda a base; algumas alterações/exclusões de criança e familiar não passam por Policies específicas.
@@ -556,9 +555,9 @@ Transformar a POC em um sistema de produção seguro e auditável que:
 #### Estado atual verificado
 
 - Monólito PHP 8.3/Laravel 13 com Inertia 2, React 18, Vite e Tailwind CSS 3; autenticação e sessão são mantidas pela aplicação.
-- SQLite e filesystem local/público ainda caracterizam a POC e são bloqueadores para dados reais, conforme `ARQ-01/02/03`.
+- PostgreSQL 17 já é canônico no Docker local, PHPUnit Feature e Playwright E2E por `ARQ-01A`; o SQLite sintético antigo não é importado nem usado operacionalmente. Filesystem local/público e infraestrutura PostgreSQL de produção continuam bloqueadores para dados reais em `ARQ-01/02/03/07`.
 - Há workflow GitHub Actions e suíte Playwright fixada no `package-lock.json`; os gates continuam sendo os de `RTK.md`, e E2E deve rodar exclusivamente por `npm run test:e2e`.
-- As decisões de [identidade](docs/adr/0002-identidade-laravel-fortify-totp.md) e [infraestrutura-alvo](docs/adr/0003-infraestrutura-contabo-swarm-redis.md) estão documentadas, mas Fortify/TOTP, Contabo, Swarm, PostgreSQL, Redis, Horizon e backups fora da VPS **ainda não estão implantados**.
+- As decisões de [identidade](docs/adr/0002-identidade-laravel-fortify-totp.md) e [infraestrutura-alvo](docs/adr/0003-infraestrutura-contabo-swarm-redis.md) estão documentadas. PostgreSQL local/CI foi implantado em `ARQ-01A`; Fortify/TOTP, PostgreSQL na Contabo, Swarm, Redis, Horizon e backups fora da VPS **ainda não estão implantados**.
 - A decisão de [organização e unidade únicas](docs/adr/0004-organizacao-e-unidade-unicas.md) aprovou um contexto explícito fixado no backend, sem SaaS multi-organização, suporte multiunidade ou seleção de unidade. Modelo, backfill e testes correspondentes **ainda não estão implementados**.
 
 #### Tecnologias recomendadas e aprovadas para implementação, ainda sujeitas aos gates
@@ -579,6 +578,16 @@ Transformar a POC em um sistema de produção seguro e auditável que:
 ### Direção recomendada
 
 Manter **Laravel + React/Inertia como monólito modular** nesta fase. A stack atende o domínio e a equipe ganha mais separando módulos e dados do que introduzindo microserviços. Escalar primeiro com aplicação stateless, PostgreSQL, object storage privado, filas e observabilidade; considerar serviços separados apenas diante de medição ou fronteira organizacional real.
+
+- [x] **ARQ-01A — Tornar PostgreSQL canônico em desenvolvimento e CI** (P0, M; concluído em 31/08/2026; corte de `ARQ-01`)
+  - PostgreSQL 17 no Docker Compose com healthcheck, rede interna, volume nomeado e sem porta pública; `pdo_pgsql` substitui a dependência operacional de SQLite no container PHP.
+  - PHPUnit Feature, migrations e Playwright E2E usam PostgreSQL; Unit tests permanecem sem dependência de banco. CI valida banco vazio, seed exclusivamente sintético, refresh efêmero, relacionamentos essenciais e ausência de FK sem índice.
+  - O bootstrap de testes e o comando `e2e:reset-database` falham antes de qualquer consulta destrutiva se ambiente, driver, host, `DB_URL`, banco exato ou configuração efetiva/cacheada não forem seguros. O E2E prepara assets, usa servidor concorrente e aguarda respostas/navegação reais, sem retries.
+  - Agenda interpreta `datetime-local` em `America/Sao_Paulo`, persiste instantes em UTC e converte fronteiras de consulta para UTC; compromissos de dia inteiro preservam a data civil. Criação, edição e leitura têm cobertura Feature e E2E desktop/mobile.
+  - Corrigida a migration histórica `2026_07_17_000014` para parsing PHP portátil e determinístico. Exceção autorizada antes de produção: o SQLite continha somente dados fictícios e não existe cadeia produtiva a preservar. Demais migrations históricas não foram reescritas.
+  - Migration aditiva cria somente índices ausentes das chaves estrangeiras. SQLite antigo permanece intocado/ignorado, sem exportação ou backfill.
+  - A compatibilidade Vercel foi mantida somente para a demo sintética, protegida por `VERCEL=true` e isolada do PostgreSQL canônico. Sua remoção depende do cutover/desativação do deploy. Guia local: [PostgreSQL local e testes](docs/development/postgresql.md).
+  - Aceite concluído: gates PostgreSQL/CI, persistência local, isolamento do banco E2E e fluxos desktop/mobile foram evidenciados no handoff Implementer → Senior → QA/Security, sem achados bloqueantes. Este item não autoriza dados reais nem conclui `ARQ-01`.
 
 - [ ] **ARQ-01 — Migrar SQLite para PostgreSQL autogerido inicialmente na VPS** (P0, XG; implementa `DEC-05`)
   - Por restrição do orçamento total aproximado de R$ 60/mês, iniciar com PostgreSQL autogerido na Contabo VPS, em serviço isolado no Swarm, volume persistente dedicado, TLS e rede privada sem porta pública de banco.

@@ -30,8 +30,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         );
     })->create();
 
-// Vercel serverless runtime uses a read-only filesystem except for /tmp.
-if (($_ENV['VERCEL'] ?? false) || ($_ENV['APP_ENV'] ?? '') === 'production') {
+// Exceção temporária para a demonstração sintética legada na Vercel.
+// Ambientes PostgreSQL, inclusive produção futura, nunca entram neste bloco.
+if (filter_var($_ENV['VERCEL'] ?? getenv('VERCEL'), FILTER_VALIDATE_BOOL)) {
     $app->useStoragePath('/tmp/storage');
     foreach ([
         '/tmp/storage',
@@ -49,15 +50,21 @@ if (($_ENV['VERCEL'] ?? false) || ($_ENV['APP_ENV'] ?? '') === 'production') {
         }
     }
 
-    // Copy the seeded SQLite database to /tmp so the runtime can write to it.
-    $buildDb = $app->basePath('database/database.sqlite');
-    $runtimeDb = '/tmp/database.sqlite';
-    if (! file_exists($runtimeDb) && file_exists($buildDb)) {
-        copy($buildDb, $runtimeDb);
+    $buildDatabase = $app->basePath('database/database.sqlite');
+    $runtimeDatabase = '/tmp/database.sqlite';
+    if (! file_exists($runtimeDatabase) && file_exists($buildDatabase)) {
+        copy($buildDatabase, $runtimeDatabase);
     }
-    putenv('DB_DATABASE='.$runtimeDb);
-    $_ENV['DB_DATABASE'] = $runtimeDb;
-    $_SERVER['DB_DATABASE'] = $runtimeDb;
+
+    foreach ([
+        'DB_CONNECTION' => 'sqlite',
+        'DB_DATABASE' => $runtimeDatabase,
+        'DB_URL' => '',
+    ] as $key => $value) {
+        putenv($key.'='.$value);
+        $_ENV[$key] = $value;
+        $_SERVER[$key] = $value;
+    }
 }
 
 return $app;

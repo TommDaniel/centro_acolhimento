@@ -34,7 +34,7 @@
 </header>
 
 <footer>
-    Registrado por {{ $visita->criador?->name ?? '—' }} em {{ $visita->created_at->format('d/m/Y \à\s H:i') }} — Setor: {{ $visita->setor?->nome ?? '—' }}<br>
+    Registrado por {{ $visita->criador?->name ?? '—' }} em {{ $visita->created_at->timezone('America/Sao_Paulo')->format('d/m/Y \à\s H:i') }} — Setor: {{ $visita->setor?->nome ?? '—' }}<br>
     Documento gerado eletronicamente (POC — dados fictícios)
 </footer>
 

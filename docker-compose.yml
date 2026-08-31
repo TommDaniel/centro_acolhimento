@@ -1,11 +1,97 @@
 services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: centro_acolhimento
+      POSTGRES_USER: centro_local
+      POSTGRES_PASSWORD: local_only_change_in_production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U centro_local -d centro_acolhimento"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - database_internal
+
   app:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_CONNECTION: pgsql
+      DB_URL: ""
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: centro_acolhimento
+      DB_USERNAME: centro_local
+      DB_PASSWORD: local_only_change_in_production
+      DB_SSLMODE: disable
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     command: php artisan serve --host=0.0.0.0 --port=8000
+    networks:
+      - default
+      - database_internal
+
+  app-e2e:
+    build: .
+    profiles: ["e2e"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_URL: http://app-e2e:8000
+      PHP_CLI_SERVER_WORKERS: 4
+      DB_CONNECTION: pgsql
+      DB_URL: ""
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: centro_acolhimento_test
+      DB_USERNAME: centro_local
+      DB_PASSWORD: local_only_change_in_production
+      DB_SSLMODE: disable
+      SESSION_DRIVER: file
+    volumes:
+      - .:/app
+    command: >-
+      sh -c "php artisan e2e:reset-database
+      && php artisan serve --no-reload --host=0.0.0.0 --port=8000"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/login') === false ? 1 : 0);"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - default
+      - database_internal
+
+  playwright-e2e:
+    image: mcr.microsoft.com/playwright:v1.62.1-noble
+    profiles: ["e2e"]
+    depends_on:
+      app-e2e:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      CI: "true"
+      PLAYWRIGHT_BASE_URL: http://app-e2e:8000
+    volumes:
+      - .:/app
+      - e2e_node_modules:/app/node_modules
+    command: sh -c "npm ci && npm run build && npm run test:e2e"
+    networks:
+      - default
 
   vite:
     image: node:22-alpine
@@ -17,3 +103,13 @@ services:
       - .:/app
     command: sh -c "npm install && npm run dev -- --host"
     profiles: ["dev"]
+
+volumes:
+  postgres_data:
+    name: centro_acolhimento_postgres_data
+  e2e_node_modules:
+    name: centro_acolhimento_e2e_node_modules
+
+networks:
+  database_internal:
+    internal: true

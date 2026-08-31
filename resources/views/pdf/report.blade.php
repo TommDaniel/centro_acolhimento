@@ -33,7 +33,7 @@
 </header>
 
 <footer>
-    Registrado por {{ $report->criador?->name ?? '—' }} em {{ $report->created_at->format('d/m/Y \à\s H:i') }} — Setor: {{ $report->setor?->nome ?? '—' }}<br>
+    Registrado por {{ $report->criador?->name ?? '—' }} em {{ $report->created_at->timezone('America/Sao_Paulo')->format('d/m/Y \à\s H:i') }} — Setor: {{ $report->setor?->nome ?? '—' }}<br>
     Documento gerado eletronicamente (POC — dados fictícios)
 </footer>
 

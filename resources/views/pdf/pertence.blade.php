@@ -37,7 +37,7 @@
 </header>
 
 <footer>
-    Registrado por {{ $pertence->criador?->name ?? '—' }} em {{ $pertence->created_at->format('d/m/Y \à\s H:i') }} — Setor: {{ $pertence->setor?->nome ?? '—' }}<br>
+    Registrado por {{ $pertence->criador?->name ?? '—' }} em {{ $pertence->created_at->timezone('America/Sao_Paulo')->format('d/m/Y \à\s H:i') }} — Setor: {{ $pertence->setor?->nome ?? '—' }}<br>
     Documento gerado eletronicamente (POC — dados fictícios)
 </footer>
 

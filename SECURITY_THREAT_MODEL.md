@@ -4,8 +4,8 @@ Escopo: aplicação Laravel/Inertia, banco, arquivos, PDFs, autenticação, agen
 
 ## Estado do desenho
 
-- **Implementado hoje na POC:** Laravel/Inertia, autenticação local incompleta, SQLite no deploy atual e arquivos locais/públicos. O cadastro público está **CONTROLADO por `SEG-01A` em 26/08/2026**, com rotas ausentes e PHPUnit/E2E aprovados; Fortify/TOTP/lifecycle, autorização ampla e ausência de auditoria permanecem riscos abertos em `SEG-01/02/03`.
-- **Aprovado como alvo, ainda não implementado:** uma organização e uma unidade/local/complexo com várias casas internas; PostgreSQL; três Redis separados; Horizon; object storage privado; Contabo VPS com Swarm single-node; cofre/backup/restore; Fortify e MFA TOTP obrigatório para toda conta humana.
+- **Implementado hoje na POC:** Laravel/Inertia, autenticação local incompleta e fundação PostgreSQL 17 concluída no Docker local/CI (`ARQ-01A` em 31/08/2026), ainda com arquivos locais/públicos. O SQLite sintético antigo não é migrado e só permanece operacional na demo efêmera quando `VERCEL=true`, nunca para dados reais. O cadastro público está **CONTROLADO por `SEG-01A` em 26/08/2026**, com rotas ausentes e PHPUnit/E2E aprovados; Fortify/TOTP/lifecycle, autorização ampla e ausência de auditoria permanecem riscos abertos em `SEG-01/02/03`.
+- **Aprovado como alvo, ainda não implementado:** uma organização e uma unidade/local/complexo com várias casas internas; PostgreSQL produtivo na Contabo com TLS/roles mínimas/backup/restore; três Redis separados; Horizon; object storage privado; Swarm single-node; cofre; Fortify e MFA TOTP obrigatório para toda conta humana.
 - **Pendente de decisão/gates e não autorizado para dados reais:** Gmail/OAuth/Pub/Sub, PWA/Web Push e LLM. Linhas tracejadas no diagrama representam essas fronteiras futuras.
 
 Documentar um controle planejado não reduz o risco. Ele só passa a `CONTROLADO` após implementação, testes positivos/negativos, evidência operacional e aprovações exigidas.
@@ -29,7 +29,7 @@ flowchart LR
     A["Administrador autorizado"] -->|"gestão de acesso"| C
     X["Atacante / usuário sem vínculo"] -->|"requisições manipuladas"| C
     C --> W["Laravel + Inertia"]
-    W -->|"consultas autorizadas"| P[("PostgreSQL planejado")]
+    W -->|"consultas autorizadas"| P[("PostgreSQL local/CI\nprodução pendente")]
     W -->|"upload/download privado"| O["Object storage planejado"]
     W -->|"cache/sessão/job mínimo"| R["3 Redis planejados"]
     R --> H["Horizon/workers planejados"]
@@ -69,7 +69,7 @@ Cada seta cruza uma fronteira: navegador/service worker é não confiável; auto
 | T08 | Logs, erros, analytics ou prompts copiam PII/saúde/tokens | Vazamento secundário | Redação, allowlist de campos, debug desligado, testes/inspeção de logs e dados sintéticos |
 | T09 | XSS em narrativas ou conteúdo de documento | Roubo de sessão/ação indevida | Escape por padrão, sanitização quando HTML for inevitável, CSP, teste de payload armazenado |
 | T10 | CSRF, brute force, enumeração e abuso de exportação/PDF | Ação indevida/DoS | CSRF, rate limits por ação, filas, limites, respostas não enumeráveis e alertas |
-| T11 | Deploy executa reset/seed ou filesystem efêmero perde banco/arquivo | Perda total/divergência | PostgreSQL e storage duráveis, migrations incrementais, ambientes separados, restore testado |
+| T11 | Deploy/teste executa reset/seed no banco errado, inclusive por `DB_URL` ou config cache inseguro, ou filesystem efêmero perde banco/arquivo | Perda total/divergência | PostgreSQL e storage duráveis, migrations incrementais, ambientes separados, restore testado; bootstrap e comando E2E validam ambiente do processo e configuração efetiva antes de consultar/resetar, aceitando somente PostgreSQL local e `centro_acolhimento_test` |
 | T12 | Backup, fornecedor ou suporte amplia acesso/transferência | Exposição fora do app | Criptografia, menor privilégio, DPA/suboperadores/região, logging, retenção e plano de saída |
 | T13 | Cliente adultera organização/unidade ou casa é tratada como tenant/permissão | Escopo inconsistente e exposição entre casos | Contexto único resolvido no backend, requests não atribuem organização/unidade; casa é localização interna; `DEC-01` decide histórico; Policies continuam por papel/setor/vínculo/sensibilidade |
 | T14 | Token OAuth Gmail excessivo, vazado, não revogável ou vinculado à identidade coletiva | Leitura indevida da caixa institucional | `DEC-08`, menor escopo, principal da aplicação separado, credencial criptografada/rotacionável, revogação/blast radius, Limited Use e PoC sintética antes de dados reais |
@@ -102,16 +102,17 @@ Cada seta cruza uma fronteira: navegador/service worker é não confiável; auto
 16. Restore integral recupera PostgreSQL/objetos/chaves dentro do RPO/RTO sem reativar sessão/recaller revogado; ausência do cofre ou backup fora da VPS falha o gate.
 17. Eventual LLM permanece desligado para dados reais e corpus sintético adversarial não aciona ferramenta, URL, persistência ou efeito jurídico.
 18. Administradora tenta atribuir `equipe_tecnica` a si mesma, delegar papel fora da allowlist ou usar sessão sem step-up recente; todas as tentativas falham sem mudança parcial e geram alerta/auditoria minimizados.
+19. Teste recebe `DB_URL`, host, driver, ambiente, banco ou config cache divergente; o bootstrap/comando falha antes da primeira consulta e nunca alcança `migrate:fresh`. Agenda criada/editada em `America/Sao_Paulo` mantém o mesmo horário civil após persistência UTC, inclusive em dia inteiro.
 
 ## Riscos de go-live ainda abertos
 
-Os bloqueadores P0 de `TODO.md` permanecem: SQLite efêmero, arquivos públicos, autorização ampla, ausência de auditoria, deploy destrutivo, retenção/RIPD e recuperação não aprovadas. O cadastro público foi CONTROLADO por `SEG-01A` em 26/08/2026, mas Fortify/TOTP/lifecycle continuam abertos em `SEG-01`. PostgreSQL, Redis/Horizon, Swarm/cofre/restore e storage privado são alvo, não evidência atual. Gmail/PWA/LLM continuam bloqueados para dados reais pelos seus gates. Este modelo não declara a POC segura para dados reais.
+Os bloqueadores P0 de `TODO.md` permanecem: arquivos públicos, autorização ampla, ausência de auditoria, PostgreSQL produtivo sem TLS/roles/backup/restore, retenção/RIPD e recuperação não aprovadas. O cadastro público foi CONTROLADO por `SEG-01A` em 26/08/2026, mas Fortify/TOTP/lifecycle continuam abertos em `SEG-01`. `ARQ-01A` controla somente o risco de banco efêmero e deploy destrutivo na fundação local/CI; Redis/Horizon, Swarm/cofre/restore e storage privado continuam sendo alvo sem evidência produtiva. Gmail/PWA/LLM continuam bloqueados para dados reais pelos seus gates. Este modelo não declara a POC segura para dados reais.
 
 | Risco em 26/08/2026 | Estado | Evidência atual | Responsável/tarefa |
 |---|---|---|---|
 | Cadastro público | `CONTROLADO em 26/08/2026` | `SEG-01A`: rotas GET/POST ausentes; PHPUnit de registro/autenticação 6/6 (14 assertivas) e E2E desktop/mobile 6/6; abuse case GET/POST permanece regressivo | Engenharia / `SEG-01A`; controles restantes de identidade em `SEG-01` |
 | TOTP obrigatório/lifecycle de sessão | `PLANEJADO — BLOCKER` | `DEC-07` aprovado, Fortify/TOTP/step-up/revogação ainda não implementados | Engenharia / `SEG-01`, `IAM-02` |
-| Deploy destrutivo/SQLite efêmero | `ABERTO — BLOCKER` | script `vercel` ainda contém `migrate:fresh --seed` | Engenharia / `ARQ-01`, `ARQ-03` |
+| Deploy destrutivo/SQLite efêmero | `CONTROLADO LOCAL/CI; PRODUÇÃO BLOQUEADA` | `ARQ-01A` concluído: Vercel/bootstrap SQLite está isolado por `VERCEL=true` somente para demo sintética; Docker/Feature/E2E usam PostgreSQL 17 e passaram por Senior + QA/Security. Remoção depende do cutover. TLS, roles, backup/PITR e restore na Contabo não foram implementados | Engenharia / `ARQ-01`, `ARQ-03`, `ARQ-07` |
 | Arquivos/fotos públicos | `ABERTO — BLOCKER` | storage atual não garante autorização por download | Engenharia / `ARQ-02`, `SEG-05` |
 | Autorização e auditoria granulares | `ABERTO — BLOCKER` | matriz/policies/trilha ainda incompletas | Produto + Engenharia / `SEG-02`, `SEG-03` |
 | Redis/Horizon/Swarm/cofre/restore | `PLANEJADO — BLOCKER` | arquitetura aprovada, serviços e restore integral ainda sem evidência | Engenharia / `ARQ-03/04/07`, `OPS-01/02` |

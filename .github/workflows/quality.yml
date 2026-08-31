@@ -18,6 +18,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: centro_acolhimento_test
+          POSTGRES_USER: centro_local
+          POSTGRES_PASSWORD: local_only_change_in_production
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U centro_local -d centro_acolhimento_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_URL: ''
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: centro_acolhimento_test
+      DB_USERNAME: centro_local
+      DB_PASSWORD: local_only_change_in_production
+      DB_SSLMODE: disable
+
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -28,7 +53,7 @@ jobs:
         uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.3'
-          extensions: dom, fileinfo, gd, mbstring, pdo_sqlite, sqlite3, zip
+          extensions: dom, fileinfo, gd, mbstring, pdo_pgsql, pgsql, zip
           coverage: none
 
       - name: Node 22
@@ -60,8 +85,11 @@ jobs:
       - name: Check PHP formatting
         run: vendor/bin/pint --test
 
-      - name: Run PHPUnit
-        run: php artisan test
+      - name: Run database-independent Unit tests
+        run: php artisan test --testsuite=Unit
+
+      - name: Run Feature tests on PostgreSQL
+        run: php artisan test --testsuite=Feature
 
       - name: Build frontend
         run: npm run build
@@ -75,13 +103,13 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_DB: centro_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: centro_migrations
+          POSTGRES_USER: centro_local
+          POSTGRES_PASSWORD: local_only_change_in_production
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d centro_test"
+          --health-cmd "pg_isready -U centro_local -d centro_migrations"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -112,27 +140,59 @@ jobs:
         env:
           APP_ENV: testing
           DB_CONNECTION: pgsql
+          DB_URL: ''
           DB_HOST: 127.0.0.1
           DB_PORT: 5432
-          DB_DATABASE: centro_test
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
+          DB_DATABASE: centro_migrations
+          DB_USERNAME: centro_local
+          DB_PASSWORD: local_only_change_in_production
+          DB_SSLMODE: disable
 
-      - name: Run Feature tests on PostgreSQL
-        run: php artisan test --testsuite=Feature
+      - name: Verify synthetic seed on PostgreSQL
+        run: php artisan db:seed --force
         env:
           APP_ENV: testing
           DB_CONNECTION: pgsql
+          DB_URL: ''
           DB_HOST: 127.0.0.1
           DB_PORT: 5432
-          DB_DATABASE: centro_test
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
+          DB_DATABASE: centro_migrations
+          DB_USERNAME: centro_local
+          DB_PASSWORD: local_only_change_in_production
+          DB_SSLMODE: disable
+
+      - name: Verify migration refresh on ephemeral PostgreSQL
+        run: php artisan migrate:refresh --force
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_URL: ''
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: centro_migrations
+          DB_USERNAME: centro_local
+          DB_PASSWORD: local_only_change_in_production
+          DB_SSLMODE: disable
 
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: centro_acolhimento_test
+          POSTGRES_USER: centro_local
+          POSTGRES_PASSWORD: local_only_change_in_production
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U centro_local -d centro_acolhimento_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -144,7 +204,7 @@ jobs:
         uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.3'
-          extensions: dom, fileinfo, gd, mbstring, pdo_sqlite, sqlite3, zip
+          extensions: dom, fileinfo, gd, mbstring, pdo_pgsql, pgsql, zip
           coverage: none
 
       - name: Node 22
@@ -157,25 +217,30 @@ jobs:
         run: |
           composer install --no-interaction --no-progress --prefer-dist
           npm ci
-          npx playwright install --with-deps chromium
+          ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Prepare isolated E2E application
         run: |
           cp .env.example .env
-          touch database/database.sqlite
           php artisan key:generate
-          php artisan migrate:fresh --seed --force
+          php artisan e2e:reset-database
           npm run build
         env:
           APP_ENV: testing
           APP_URL: http://127.0.0.1:8000
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+          DB_CONNECTION: pgsql
+          DB_URL: ''
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: centro_acolhimento_test
+          DB_USERNAME: centro_local
+          DB_PASSWORD: local_only_change_in_production
+          DB_SSLMODE: disable
           SESSION_DRIVER: file
 
       - name: Start application
         run: |
-          php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/e2e-server.log 2>&1 &
+          php artisan serve --no-reload --host=127.0.0.1 --port=8000 > storage/logs/e2e-server.log 2>&1 &
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8000/login > /dev/null; then
               exit 0
@@ -187,8 +252,15 @@ jobs:
         env:
           APP_ENV: testing
           APP_URL: http://127.0.0.1:8000
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+          PHP_CLI_SERVER_WORKERS: 4
+          DB_CONNECTION: pgsql
+          DB_URL: ''
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: centro_acolhimento_test
+          DB_USERNAME: centro_local
+          DB_PASSWORD: local_only_change_in_production
+          DB_SSLMODE: disable
           SESSION_DRIVER: file
 
       - name: Run Playwright

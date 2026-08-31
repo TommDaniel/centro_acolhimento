@@ -45,7 +45,7 @@
 </header>
 
 <footer>
-    Registrado por {{ $pia->criador?->name ?? '—' }} em {{ $pia->created_at->format('d/m/Y \à\s H:i') }} — Setor: {{ $pia->setor?->nome ?? '—' }}<br>
+    Registrado por {{ $pia->criador?->name ?? '—' }} em {{ $pia->created_at->timezone('America/Sao_Paulo')->format('d/m/Y \à\s H:i') }} — Setor: {{ $pia->setor?->nome ?? '—' }}<br>
     Documento gerado eletronicamente (POC — dados fictícios)
 </footer>
 

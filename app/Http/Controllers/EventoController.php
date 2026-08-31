@@ -3,16 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\AutorizaDocumento;
+use App\Http\Requests\UpsertEventoRequest;
 use App\Models\Crianca;
 use App\Models\Evento;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class EventoController extends Controller
 {
     use AutorizaDocumento;
 
-    public function index()
+    public function index(): Response
     {
         $eventos = Evento::with('crianca:id,nome_completo', 'criador:id,name', 'setor:id,nome')
             ->orderBy('inicio')
@@ -28,9 +30,9 @@ class EventoController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(UpsertEventoRequest $request): RedirectResponse
     {
-        $dados = $this->validar($request);
+        $dados = $request->validatedForPersistence();
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
 
@@ -40,17 +42,17 @@ class EventoController extends Controller
             ->with('sucesso', 'Compromisso agendado com sucesso.');
     }
 
-    public function update(Request $request, Evento $evento)
+    public function update(UpsertEventoRequest $request, Evento $evento): RedirectResponse
     {
         $this->autorizarDocumento($evento);
 
-        $evento->update($this->validar($request));
+        $evento->update($request->validatedForPersistence());
 
         return redirect()->route('agenda.index')
             ->with('sucesso', 'Compromisso atualizado com sucesso.');
     }
 
-    public function toggleConcluido(Evento $evento)
+    public function toggleConcluido(Evento $evento): RedirectResponse
     {
         $this->autorizarDocumento($evento);
 
@@ -59,7 +61,7 @@ class EventoController extends Controller
         return redirect()->route('agenda.index');
     }
 
-    public function destroy(Evento $evento)
+    public function destroy(Evento $evento): RedirectResponse
     {
         $this->autorizarDocumento($evento);
 
@@ -67,18 +69,5 @@ class EventoController extends Controller
 
         return redirect()->route('agenda.index')
             ->with('sucesso', 'Compromisso removido.');
-    }
-
-    private function validar(Request $request): array
-    {
-        return $request->validate([
-            'titulo' => ['required', 'string', 'max:255'],
-            'tipo' => ['required', 'in:visita,audiencia,atendimento,tarefa,outro'],
-            'descricao' => ['nullable', 'string'],
-            'inicio' => ['required', 'date'],
-            'fim' => ['nullable', 'date', 'after_or_equal:inicio'],
-            'dia_inteiro' => ['nullable', 'boolean'],
-            'crianca_id' => ['nullable', 'exists:criancas,id'],
-        ]);
     }
 }

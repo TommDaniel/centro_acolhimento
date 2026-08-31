@@ -4,10 +4,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpng-dev \
         libjpeg62-turbo-dev \
+        libpq-dev \
         libzip-dev \
-        libsqlite3-dev \
         unzip \
-    && docker-php-ext-install pdo_sqlite gd zip \
+    && docker-php-ext-install pdo_pgsql gd zip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

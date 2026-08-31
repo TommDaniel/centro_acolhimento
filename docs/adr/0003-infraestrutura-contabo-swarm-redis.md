@@ -1,6 +1,6 @@
 # ADR 0003 — Infraestrutura futura em Contabo VPS, Swarm e Redis
 
-- Status: aceito como arquitetura-alvo; implementação pendente
+- Status: aceito como arquitetura-alvo; fundação PostgreSQL local/CI concluída por `ARQ-01A` em 31/08/2026, produção pendente
 - Data: 12/08/2026
 - Tarefas: `ARQ-01`, `ARQ-02`, `ARQ-03`, `ARQ-04`, `ARQ-07`, `ARQ-08`, `OPS-02`
 - Referência: [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon)
@@ -11,6 +11,22 @@
 A POC atual usa SQLite e filesystem local/público, inadequados para dados restritos e sensíveis. O orçamento total inicial é de aproximadamente R$ 60 por mês, há apenas quatro usuários e uma aplicação, e a hospedagem futura aprovada é uma Contabo VPS.
 
 O objetivo da fase 1 é reduzir risco de perda e tornar execução, filas e deploy reproduzíveis dentro desse limite. Desempenho não motiva cache amplo. Esta decisão não afirma que a infraestrutura já existe nem autoriza dados reais.
+
+## Estado de implementação
+
+`ARQ-01A` adota PostgreSQL 17 como banco canônico no Docker local, PHPUnit
+Feature e Playwright E2E. O serviço local usa rede interna, volume persistente,
+healthcheck e credenciais explicitamente não produtivas. A migration histórica
+de numeração foi ajustada, excepcionalmente antes de qualquer cadeia produtiva,
+para parsing PHP portátil; uma migration aditiva indexa as chaves estrangeiras.
+O SQLite sintético da POC permanece intocado e não é importado.
+Até o cutover Contabo, ele é usado somente pela demonstração efêmera da
+Vercel, mediante `VERCEL=true`; local, CI e E2E permanecem PostgreSQL. Essa
+exceção não autoriza dados reais e será removida ao desativar o deploy legado.
+
+Esse corte não implementa a infraestrutura descrita abaixo para a Contabo:
+Swarm, TLS, roles mínimas separadas, limites de conexão, monitoramento,
+backup/WAL/PITR, cofre, restore e RPO/RTO continuam pendentes em `ARQ-01/07`.
 
 ## Decisão
 

@@ -12,7 +12,7 @@ rápida ("o processo X é de que criança?").
 
 ## Stack
 
-- **Backend**: Laravel 13 (PHP 8.3, em Docker) + SQLite (`database/database.sqlite`)
+- **Backend**: Laravel 13 (PHP 8.3, em Docker) + PostgreSQL 17
 - **Frontend**: SPA com Inertia.js v2 + React 18 + MUI v9 + Tailwind v3 +
   Framer Motion (mobile-first, menu lateral drawer, animações de transição)
 - **PDFs**: barryvdh/laravel-dompdf (templates Blade em `resources/views/pdf`)
@@ -20,13 +20,18 @@ rápida ("o processo X é de que criança?").
 
 ## Como rodar
 
-Pré-requisitos: Docker + Docker Compose; Node 20+ apenas para rebuild do front.
+Pré-requisitos: Docker + Docker Compose; Node 22+ apenas para rebuild do front.
 
 ```bash
-docker compose up -d app                                     # sobe em http://localhost:8000
-docker compose run --rm app php artisan migrate:fresh --seed # banco + dados fictícios
-docker compose run --rm app php artisan storage:link         # link p/ fotos e anexos
+docker compose up -d postgres app
+docker compose run --rm app php artisan migrate --seed
 ```
+
+O PostgreSQL não publica a porta `5432`; apenas a aplicação o acessa pela
+rede interna do Compose. As credenciais presentes no Compose são exclusivas
+do desenvolvimento local e não podem ser reutilizadas em produção. O guia
+com healthcheck, testes e diagnóstico está em
+[`docs/development/postgresql.md`](docs/development/postgresql.md).
 
 Acesse <http://localhost:8000> e entre com um dos usuários fictícios
 (senha de todos: `password`):
@@ -91,13 +96,24 @@ docker compose --profile dev up vite   # ou: npm run dev (local)
 
 ## Banco de dados
 
+PostgreSQL 17 é o banco canônico para desenvolvimento, Feature tests e E2E.
+O SQLite antigo contém somente dados sintéticos da POC, não é migrado nem
+apagado automaticamente. Ele permanece temporariamente apenas na demonstração
+efêmera quando `VERCEL=true`; fora desse runtime não existe fallback SQLite.
+
 `setores` 1—N `users` · `criancas` 1—N `pias` / `visitas_tecnicas` / `reports`
 / `pertences` / `crianca_documentos`. Todo registro guarda `created_by`
 (quem fez) e `created_at` (quando). Documentos herdam o `setor_id` de quem
 registrou. Campos opcionais ficam `NULL` e são omitidos na renderização.
 
-## Resetar a demonstração
+## Resetar a demonstração local
+
+Somente para desenvolvimento local, confirme que o banco nomeado é
+`centro_acolhimento` antes de executar:
 
 ```bash
-docker compose run --rm app php artisan migrate:fresh --seed
+docker compose run --rm -e APP_ENV=local -e DB_DATABASE=centro_acolhimento app php artisan migrate:fresh --seed
 ```
+
+Esse comando é proibido em staging e produção. Parar ou reiniciar os
+containers não apaga o volume PostgreSQL.

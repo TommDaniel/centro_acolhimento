@@ -12,31 +12,55 @@ return new class extends Migration
     {
         $ano = now()->year;
 
-        // Maior número já usado no ano entre todos os documentos.
         $contador = 0;
         foreach (self::TABELAS as $tabela) {
-            $max = (int) DB::table($tabela)
+            $maiorNumeroDaTabela = DB::table($tabela)
                 ->whereYear('created_at', $ano)
                 ->whereNotNull('numero_oficio')
-                ->whereRaw('numero_oficio LIKE ?', ['%/'.$ano])
-                ->max(DB::raw('CAST(SUBSTR(numero_oficio, 1, INSTR(numero_oficio, "/") - 1) AS INTEGER)'));
+                ->pluck('numero_oficio')
+                ->map(static function (string $numeroOficio) use ($ano): int {
+                    $correspondeAoFormato = preg_match(
+                        '/^(?<sequencial>[1-9][0-9]*)\/(?<ano>[0-9]{4})$/',
+                        $numeroOficio,
+                        $partes,
+                    );
 
-            if ($max > $contador) {
-                $contador = $max;
-            }
+                    if ($correspondeAoFormato !== 1 || (int) $partes['ano'] !== $ano) {
+                        return 0;
+                    }
+
+                    return (int) $partes['sequencial'];
+                })
+                ->max() ?? 0;
+
+            $contador = max($contador, $maiorNumeroDaTabela);
         }
 
-        // Coleta todos os registros sem ofício, de todas as tabelas, ordenados por criação.
         $pendentes = collect();
         foreach (self::TABELAS as $tabela) {
             DB::table($tabela)
                 ->whereNull('numero_oficio')
                 ->orderBy('created_at')
+                ->orderBy('id')
                 ->get(['id', 'created_at'])
-                ->each(fn ($r) => $pendentes->push(['tabela' => $tabela, 'id' => $r->id, 'created_at' => $r->created_at]));
+                ->each(fn ($registro) => $pendentes->push([
+                    'tabela' => $tabela,
+                    'id' => (int) $registro->id,
+                    'created_at' => (string) $registro->created_at,
+                ]));
         }
 
-        $pendentes = $pendentes->sortBy('created_at')->values();
+        $pendentes = $pendentes
+            ->sort(static fn (array $primeiro, array $segundo): int => [
+                $primeiro['created_at'],
+                $primeiro['tabela'],
+                $primeiro['id'],
+            ] <=> [
+                $segundo['created_at'],
+                $segundo['tabela'],
+                $segundo['id'],
+            ])
+            ->values();
 
         foreach ($pendentes as $item) {
             $contador++;
