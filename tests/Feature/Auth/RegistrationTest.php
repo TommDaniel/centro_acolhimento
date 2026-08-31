@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -9,23 +10,31 @@ class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_screen_can_be_rendered(): void
+    public function test_public_registration_screen_is_not_available(): void
     {
         $response = $this->get('/register');
 
-        $response->assertStatus(200);
+        $response->assertNotFound();
+        $this->assertGuest();
     }
 
-    public function test_new_users_can_register(): void
+    public function test_direct_public_registration_request_does_not_create_a_user(): void
     {
-        $response = $this->post('/register', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+        $existingUser = User::factory()->create([
+            'name' => 'Usuaria Ficticia Existente',
+            'email' => 'existente.ficticia@example.test',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response = $this->post('/register', [
+            'name' => 'Nova Pessoa Ficticia',
+            'email' => 'nova.pessoa.ficticia@example.test',
+            'password' => 'senha-ficticia-segura',
+            'password_confirmation' => 'senha-ficticia-segura',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertGuest();
+        self::assertSame(1, User::query()->count());
+        $this->assertModelExists($existingUser);
     }
 }
