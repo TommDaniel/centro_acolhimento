@@ -1,21 +1,22 @@
 <?php
 
 declare(strict_types=1);
+use Illuminate\Support\Carbon;
 
 if (! function_exists('dataPorExtensoPtBr')) {
     /**
      * Formata uma data no padrão brasileiro por extenso.
      * Exemplo: "07 de julho de 2026".
      */
-    function dataPorExtensoPtBr(\DateTimeInterface|string|null $data, bool $capitalizar = false): ?string
+    function dataPorExtensoPtBr(DateTimeInterface|string|null $data, bool $capitalizar = false): ?string
     {
         if ($data === null) {
             return null;
         }
 
-        $carbon = $data instanceof \DateTimeInterface
-            ? \Illuminate\Support\Carbon::instance($data)
-            : \Illuminate\Support\Carbon::parse($data);
+        $carbon = $data instanceof DateTimeInterface
+            ? Carbon::instance($data)
+            : Carbon::parse($data);
 
         $meses = [
             1 => 'janeiro', 2 => 'fevereiro', 3 => 'março', 4 => 'abril',

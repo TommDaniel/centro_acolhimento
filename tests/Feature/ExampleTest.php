@@ -7,13 +7,12 @@ use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    /**
-     * A basic test example.
-     */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_guest_is_redirected_from_the_root_to_login_via_the_protected_dashboard(): void
     {
-        $response = $this->get('/');
+        $this->get('/')
+            ->assertRedirect('/dashboard');
 
-        $response->assertStatus(200);
+        $this->get('/dashboard')
+            ->assertRedirectToRoute('login');
     }
 }
