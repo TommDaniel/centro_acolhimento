@@ -34,3 +34,6 @@ Thumbs.db
 /output/playwright/
 /playwright-report/
 /test-results/
+
+# Documentos oficiais locais podem conter dados pessoais reais.
+/docs/formatacoes/
