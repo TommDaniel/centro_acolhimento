@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\AutorizaDocumento;
 use App\Http\Controllers\Concerns\EmiteOficio;
 use App\Models\Crianca;
 use App\Models\Report;
@@ -13,11 +12,12 @@ use Inertia\Inertia;
 
 class ReportController extends Controller
 {
-    use AutorizaDocumento;
     use EmiteOficio;
 
     public function index()
     {
+        $this->authorize('viewAny', Report::class);
+
         $reports = Report::with('crianca', 'criador')->latest()->paginate(15);
 
         return Inertia::render('Reports/Index', compact('reports'));
@@ -25,6 +25,8 @@ class ReportController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', Report::class);
+
         $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')->get(['id', 'nome_completo']);
 
         return Inertia::render('Reports/Form', [
@@ -36,6 +38,8 @@ class ReportController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', Report::class);
+
         $dados = $this->validar($request);
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
@@ -49,6 +53,8 @@ class ReportController extends Controller
 
     public function show(Report $report)
     {
+        $this->authorize('view', $report);
+
         $report->load('crianca', 'criador', 'setor');
 
         return Inertia::render('Reports/Show', [
@@ -60,7 +66,7 @@ class ReportController extends Controller
 
     public function edit(Report $report)
     {
-        $this->autorizarDocumento($report);
+        $this->authorize('update', $report);
 
         $criancas = Crianca::orderBy('nome_completo')->get(['id', 'nome_completo']);
 
@@ -73,7 +79,7 @@ class ReportController extends Controller
 
     public function update(Request $request, Report $report)
     {
-        $this->autorizarDocumento($report);
+        $this->authorize('update', $report);
 
         $report->update($this->validar($request));
 
@@ -83,17 +89,15 @@ class ReportController extends Controller
 
     public function destroy(Report $report)
     {
-        $this->autorizarDocumento($report);
+        $this->authorize('delete', $report);
 
-        $criancaId = $report->crianca_id;
-        $report->delete();
-
-        return redirect()->route('criancas.show', $criancaId)
-            ->with('sucesso', 'Relatório de ocorrência removido.');
+        abort(405, 'Documentos assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function pdf(Report $report)
     {
+        $this->authorize('download', $report);
+
         $report->load('crianca', 'criador', 'setor');
 
         $arquivo = 'ocorrencia-'.Str::slug($report->crianca->nome_completo).'-'.$report->created_at->format('Ymd').'.pdf';

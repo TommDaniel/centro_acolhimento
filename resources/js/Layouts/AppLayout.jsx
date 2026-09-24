@@ -19,6 +19,7 @@ import {
     Menu as MenuIcon,
     Person as PersonIcon,
     ReportProblem as ReportsIcon,
+    ShieldOutlined as AuditoriaIcon,
     Search as SearchIcon,
 } from '@mui/icons-material';
 
@@ -57,6 +58,7 @@ const secoes = [
         itens: [
             { rotulo: 'Setores', href: '/setores', icone: SetoresIcon },
             { rotulo: 'Equipe', href: '/equipe', icone: EquipeIcon },
+            { rotulo: 'Auditoria', href: '/auditoria', icone: AuditoriaIcon, adminOnly: true },
         ],
     },
 ];
@@ -66,7 +68,7 @@ function itemAtivo(url, href) {
     return url.startsWith(href);
 }
 
-function ConteudoDrawer({ url, aoNavegar }) {
+function ConteudoDrawer({ url, aoNavegar, isAdmin }) {
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Box sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
@@ -82,7 +84,7 @@ function ConteudoDrawer({ url, aoNavegar }) {
                             </ListSubheader>
                         }
                     >
-                        {secao.itens.map((item) => {
+                        {secao.itens.filter((item) => !item.adminOnly || isAdmin).map((item) => {
                             const Icone = item.icone;
                             const ativo = itemAtivo(url, item.href);
                             return (
@@ -132,6 +134,7 @@ function ConteudoDrawer({ url, aoNavegar }) {
 export default function AppLayout({ titulo, children }) {
     const { url, props } = usePage();
     const usuario = props.auth?.user;
+    const isAdmin = Boolean(usuario?.is_admin);
     const [menuAberto, setMenuAberto] = useState(false);
     const [anchorUsuario, setAnchorUsuario] = useState(null);
     const [busca, setBusca] = useState(props.q ?? '');
@@ -261,14 +264,14 @@ export default function AppLayout({ titulo, children }) {
                     ModalProps={{ keepMounted: true }}
                     sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
                 >
-                    <ConteudoDrawer url={url} aoNavegar={() => setMenuAberto(false)} />
+                    <ConteudoDrawer url={url} aoNavegar={() => setMenuAberto(false)} isAdmin={isAdmin} />
                 </Drawer>
                 <Drawer
                     variant="permanent"
                     open
                     sx={{ display: { xs: 'none', md: 'block' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
                 >
-                    <ConteudoDrawer url={url} />
+                    <ConteudoDrawer url={url} isAdmin={isAdmin} />
                 </Drawer>
             </Box>
 

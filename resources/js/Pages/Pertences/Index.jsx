@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { Box, Button, Card, Chip, Stack, Typography } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
@@ -9,8 +9,7 @@ import Paginacao from '@/Components/Paginacao';
 import { fmtData } from '@/utils/format';
 
 export default function Index({ pertences }) {
-    const usuario = usePage().props.auth?.user;
-    const podeAlterar = (doc) => Boolean(usuario?.is_admin) || doc.setor_id === usuario?.setor_id;
+    const podeAlterar = () => true;
 
     const itens = pertences.data ?? [];
 

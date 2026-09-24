@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Actions\ProvisionInstitutionContext;
+use App\Enums\UserRole;
 use App\Models\Crianca;
 use App\Models\Evento;
 use App\Models\Pertence;
@@ -37,7 +38,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Ana Coordenadora (Fictício)',
             'email' => 'admin@poc.local',
             'password' => $senha,
-            'role' => 'admin',
+            'role' => UserRole::Administradora,
             'cargo' => 'Coordenadora da unidade',
             'telefone' => '(47) 99999-0001',
             'setor_id' => $setores['Coordenação']->id,
@@ -47,7 +48,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Bruno Assistente (Fictício)',
             'email' => 'bruno@poc.local',
             'password' => $senha,
-            'role' => 'servidor',
+            'role' => UserRole::EquipeTecnica,
             'cargo' => 'Assistente social',
             'telefone' => '(47) 99999-0002',
             'setor_id' => $setores['Serviço Social']->id,
@@ -57,7 +58,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Carla Psicóloga (Fictício)',
             'email' => 'carla@poc.local',
             'password' => $senha,
-            'role' => 'servidor',
+            'role' => UserRole::EquipeTecnica,
             'cargo' => 'Psicóloga',
             'telefone' => '(47) 99999-0003',
             'setor_id' => $setores['Psicologia']->id,
@@ -67,7 +68,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Diego Pedagogo (Fictício)',
             'email' => 'diego@poc.local',
             'password' => $senha,
-            'role' => 'servidor',
+            'role' => UserRole::EquipeTecnica,
             'cargo' => 'Pedagogo',
             'telefone' => '(47) 99999-0004',
             'setor_id' => $setores['Pedagogia']->id,

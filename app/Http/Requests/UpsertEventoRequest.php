@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Evento;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,7 +16,11 @@ class UpsertEventoRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        $evento = $this->route('evento');
+
+        return $evento instanceof Evento
+            ? ($this->user()?->can('update', $evento) ?? false)
+            : ($this->user()?->can('create', Evento::class) ?? false);
     }
 
     /**

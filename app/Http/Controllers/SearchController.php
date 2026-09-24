@@ -10,6 +10,8 @@ class SearchController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Crianca::class);
+
         $q = trim((string) $request->input('q'));
 
         $criancas = null;

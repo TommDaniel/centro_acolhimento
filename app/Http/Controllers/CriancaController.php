@@ -2,17 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\CreateCrianca;
+use App\Actions\UpdateCrianca;
 use App\Models\Crianca;
 use App\Models\CriancaDocumento;
 use App\Models\Familiar;
+use App\Services\AuditRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Throwable;
 
 class CriancaController extends Controller
 {
+    public function __construct(
+        private CreateCrianca $createCrianca,
+        private UpdateCrianca $updateCrianca,
+        private AuditRecorder $audit,
+    ) {}
+
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Crianca::class);
+
         $q = trim((string) $request->input('q'));
         $status = $request->input('status', 'acolhida');
 
@@ -36,26 +48,41 @@ class CriancaController extends Controller
 
     public function create()
     {
+        $this->authorize('create', Crianca::class);
+
         return Inertia::render('Criancas/Form', ['crianca' => null]);
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', Crianca::class);
+
         $dados = $this->validar($request);
-        $dados['created_by'] = $request->user()->id;
+        $storedPhoto = null;
 
         if ($request->hasFile('foto')) {
-            $dados['foto'] = $request->file('foto')->store('fotos', 'public');
+            $storedPhoto = $request->file('foto')->store('fotos', 'public');
+            $dados['foto'] = $storedPhoto;
         }
 
-        $crianca = Crianca::create($dados);
+        try {
+            $crianca = $this->createCrianca->handle($dados, $request->user());
+        } catch (Throwable $exception) {
+            if ($storedPhoto !== null) {
+                Storage::disk('public')->delete($storedPhoto);
+            }
+
+            throw $exception;
+        }
 
         return redirect()->route('criancas.show', $crianca)
             ->with('sucesso', 'Cadastro criado com sucesso.');
     }
 
-    public function show(Crianca $crianca)
+    public function show(Request $request, Crianca $crianca)
     {
+        $this->authorize('view', $crianca);
+
         $crianca->load([
             'criador',
             'documentos.uploader',
@@ -66,30 +93,55 @@ class CriancaController extends Controller
             'pertences' => fn ($q) => $q->with('criador')->latest(),
         ]);
 
+        $this->audit->record('crianca.viewed', 'success', $request->user(), $crianca);
+
+        $lastChange = $crianca->updated_by === null
+            ? null
+            : $crianca->loadMissing('atualizador')->atualizador;
+
         return Inertia::render('Criancas/Show', [
             'crianca' => $crianca,
             'identificacao' => $crianca->identificacao(),
+            'ultimaAtualizacao' => $lastChange === null ? null : [
+                'author' => $lastChange->name,
+                'at' => $crianca->updated_at,
+            ],
         ]);
     }
 
     public function edit(Crianca $crianca)
     {
+        $this->authorize('update', $crianca);
+
         return Inertia::render('Criancas/Form', compact('crianca'));
     }
 
     public function update(Request $request, Crianca $crianca)
     {
+        $this->authorize('update', $crianca);
+
         $dados = $this->validar($request);
-        $dados['updated_by'] = $request->user()->id;
+        $oldPhoto = $crianca->foto;
+        $storedPhoto = null;
 
         if ($request->hasFile('foto')) {
-            if ($crianca->foto) {
-                Storage::disk('public')->delete($crianca->foto);
-            }
-            $dados['foto'] = $request->file('foto')->store('fotos', 'public');
+            $storedPhoto = $request->file('foto')->store('fotos', 'public');
+            $dados['foto'] = $storedPhoto;
         }
 
-        $crianca->update($dados);
+        try {
+            $this->updateCrianca->handle($crianca, $dados, $request->user());
+        } catch (Throwable $exception) {
+            if ($storedPhoto !== null) {
+                Storage::disk('public')->delete($storedPhoto);
+            }
+
+            throw $exception;
+        }
+
+        if ($storedPhoto !== null && $oldPhoto !== null) {
+            Storage::disk('public')->delete($oldPhoto);
+        }
 
         return redirect()->route('criancas.show', $crianca)
             ->with('sucesso', 'Cadastro atualizado com sucesso.');
@@ -97,22 +149,16 @@ class CriancaController extends Controller
 
     public function destroy(Request $request, Crianca $crianca)
     {
-        abort_unless($request->user()->is_admin, 403, 'Somente administradores podem remover cadastros.');
+        $this->authorize('delete', $crianca);
 
-        if ($crianca->foto) {
-            Storage::disk('public')->delete($crianca->foto);
-        }
-        foreach ($crianca->documentos as $documento) {
-            Storage::disk('public')->delete($documento->path);
-        }
-        $crianca->delete();
-
-        return redirect()->route('criancas.index')
-            ->with('sucesso', 'Cadastro removido.');
+        abort(405, 'Cadastros assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function storeDocumento(Request $request, Crianca $crianca)
     {
+        $this->authorize('update', $crianca);
+        $this->authorize('create', CriancaDocumento::class);
+
         $request->validate([
             'anexos' => ['required', 'array', 'max:10'],
             'anexos.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,doc,docx'],
@@ -133,20 +179,16 @@ class CriancaController extends Controller
 
     public function destroyDocumento(Request $request, CriancaDocumento $documento)
     {
-        abort_unless(
-            $request->user()->is_admin || $documento->uploaded_by === $request->user()->id,
-            403,
-            'Somente o autor do envio ou um administrador pode remover o anexo.'
-        );
+        $this->authorize('delete', $documento);
 
-        Storage::disk('public')->delete($documento->path);
-        $documento->delete();
-
-        return back()->with('sucesso', 'Anexo removido.');
+        abort(405, 'Anexos assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function storeFamiliar(Request $request, Crianca $crianca)
     {
+        $this->authorize('update', $crianca);
+        $this->authorize('create', Familiar::class);
+
         $dados = $request->validate([
             'tipo' => ['required', 'in:genitora,genitor,responsavel,familiar'],
             'nome' => ['required', 'string', 'max:255'],
@@ -168,9 +210,9 @@ class CriancaController extends Controller
 
     public function destroyFamiliar(Familiar $familiar)
     {
-        $familiar->delete();
+        $this->authorize('delete', $familiar);
 
-        return back()->with('sucesso', 'Familiar removido.');
+        abort(405, 'Vínculos familiares não podem ser excluídos fisicamente.');
     }
 
     private function validar(Request $request): array

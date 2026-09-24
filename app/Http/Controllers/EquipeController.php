@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\CreateUserAccount;
+use App\Actions\UpdateUserAccount;
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\Setor;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -11,8 +15,15 @@ use Inertia\Inertia;
 
 class EquipeController extends Controller
 {
+    public function __construct(
+        private CreateUserAccount $createUserAccount,
+        private UpdateUserAccount $updateUserAccount,
+    ) {}
+
     public function index()
     {
+        $this->authorize('viewAny', User::class);
+
         $grupos = User::with('setor')->orderBy('name')->get()
             ->groupBy(fn ($user) => $user->setor?->nome ?? 'Sem setor');
 
@@ -21,6 +32,8 @@ class EquipeController extends Controller
 
     public function create()
     {
+        $this->authorize('create', User::class);
+
         $setores = Setor::orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Equipe/Form', ['usuario' => null, 'setores' => $setores]);
@@ -28,9 +41,11 @@ class EquipeController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', User::class);
+
         $dados = $this->validar($request);
 
-        User::create($dados);
+        $this->createUserAccount->handle($dados, $request->user());
 
         return redirect()->route('equipe.index')
             ->with('sucesso', 'Usuário criado com sucesso.');
@@ -38,6 +53,8 @@ class EquipeController extends Controller
 
     public function edit(User $equipe)
     {
+        $this->authorize('update', $equipe);
+
         $setores = Setor::orderBy('nome')->get(['id', 'nome']);
 
         return Inertia::render('Equipe/Form', ['usuario' => $equipe, 'setores' => $setores]);
@@ -45,13 +62,15 @@ class EquipeController extends Controller
 
     public function update(Request $request, User $equipe)
     {
+        $this->authorize('update', $equipe);
+
         $dados = $this->validar($request, $equipe);
 
         if (empty($dados['password'])) {
             unset($dados['password']);
         }
 
-        $equipe->update($dados);
+        $this->updateUserAccount->handle($equipe, $dados, $request->user());
 
         return redirect()->route('equipe.index')
             ->with('sucesso', 'Usuário atualizado com sucesso.');
@@ -59,12 +78,9 @@ class EquipeController extends Controller
 
     public function destroy(Request $request, User $equipe)
     {
-        abort_if($equipe->id === $request->user()->id, 422, 'Você não pode remover o próprio usuário.');
+        $this->authorize('delete', $equipe);
 
-        $equipe->delete();
-
-        return redirect()->route('equipe.index')
-            ->with('sucesso', 'Usuário removido.');
+        abort(405, 'Contas devem ser inativadas e não podem ser excluídas fisicamente.');
     }
 
     private function validar(Request $request, ?User $usuario = null): array
@@ -78,7 +94,8 @@ class EquipeController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($usuario)],
             'password' => $senha,
             'setor_id' => ['nullable', 'exists:setores,id'],
-            'role' => ['required', 'in:admin,servidor'],
+            'role' => ['required', Rule::enum(UserRole::class)],
+            'status' => ['required', Rule::enum(UserStatus::class)],
             'cargo' => ['nullable', 'string', 'max:255'],
             'telefone' => ['nullable', 'string', 'max:50'],
         ]);

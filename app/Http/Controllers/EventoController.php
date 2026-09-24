@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\AutorizaDocumento;
 use App\Http\Requests\UpsertEventoRequest;
 use App\Models\Crianca;
 use App\Models\Evento;
@@ -12,10 +11,10 @@ use Inertia\Response;
 
 class EventoController extends Controller
 {
-    use AutorizaDocumento;
-
     public function index(): Response
     {
+        $this->authorize('viewAny', Evento::class);
+
         $eventos = Evento::with('crianca:id,nome_completo', 'criador:id,name', 'setor:id,nome')
             ->orderBy('inicio')
             ->get();
@@ -32,6 +31,8 @@ class EventoController extends Controller
 
     public function store(UpsertEventoRequest $request): RedirectResponse
     {
+        $this->authorize('create', Evento::class);
+
         $dados = $request->validatedForPersistence();
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
@@ -44,7 +45,7 @@ class EventoController extends Controller
 
     public function update(UpsertEventoRequest $request, Evento $evento): RedirectResponse
     {
-        $this->autorizarDocumento($evento);
+        $this->authorize('update', $evento);
 
         $evento->update($request->validatedForPersistence());
 
@@ -54,7 +55,7 @@ class EventoController extends Controller
 
     public function toggleConcluido(Evento $evento): RedirectResponse
     {
-        $this->autorizarDocumento($evento);
+        $this->authorize('update', $evento);
 
         $evento->update(['concluido' => ! $evento->concluido]);
 
@@ -63,11 +64,8 @@ class EventoController extends Controller
 
     public function destroy(Evento $evento): RedirectResponse
     {
-        $this->autorizarDocumento($evento);
+        $this->authorize('delete', $evento);
 
-        $evento->delete();
-
-        return redirect()->route('agenda.index')
-            ->with('sucesso', 'Compromisso removido.');
+        abort(405, 'Compromissos devem ser cancelados e não excluídos fisicamente.');
     }
 }

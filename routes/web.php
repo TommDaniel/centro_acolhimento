@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuditController;
 use App\Http\Controllers\CriancaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EquipeController;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'auth.session', 'approved'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/busca', [SearchController::class, 'index'])->name('busca');
 
@@ -56,10 +57,11 @@ Route::middleware('auth')->group(function () {
 
     // Setores (visualização para todos; gestão restrita a admin)
     Route::resource('setores', SetorController::class)
-        ->only(['index', 'show']);
+        ->only(['index', 'show'])
+        ->parameters(['setores' => 'setor']);
     Route::resource('setores', SetorController::class)
         ->except(['index', 'show', 'create', 'edit'])
-        ->middleware('admin');
+        ->parameters(['setores' => 'setor']);
 
     // Equipe (visualização para todos; gestão restrita a admin)
     Route::resource('equipe', EquipeController::class)
@@ -67,8 +69,9 @@ Route::middleware('auth')->group(function () {
         ->parameters(['equipe' => 'equipe']);
     Route::resource('equipe', EquipeController::class)
         ->except(['index', 'show'])
-        ->parameters(['equipe' => 'equipe'])
-        ->middleware('admin');
+        ->parameters(['equipe' => 'equipe']);
+
+    Route::get('auditoria', [AuditController::class, 'index'])->name('auditoria.index');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

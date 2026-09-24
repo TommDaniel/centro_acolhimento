@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -30,6 +33,7 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            'remember' => ['prohibited'],
         ];
     }
 
@@ -42,7 +46,14 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt([
+            ...$this->only('email', 'password'),
+            'status' => UserStatus::Ativa->value,
+            fn (Builder $query) => $query->whereIn('role', [
+                UserRole::Administradora->value,
+                UserRole::EquipeTecnica->value,
+            ]),
+        ], false)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([

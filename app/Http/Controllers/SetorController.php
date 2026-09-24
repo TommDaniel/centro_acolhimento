@@ -14,6 +14,8 @@ class SetorController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Setor::class);
+
         $setores = Setor::withCount('users')->orderBy('nome')->get();
 
         return Inertia::render('Setores/Index', compact('setores'));
@@ -21,21 +23,45 @@ class SetorController extends Controller
 
     public function show(Setor $setor)
     {
-        $setor->load(['users' => fn ($q) => $q->orderBy('name')]);
+        $this->authorize('view', $setor);
+
+        $setor->load(['users' => fn ($query) => $query
+            ->select(['id', 'name', 'cargo', 'setor_id'])
+            ->orderBy('name')]);
+        $setor->users->each->setAppends([]);
 
         // Subtópicos do setor: documentos produzidos pela equipe, por tipo.
         $subtopicos = [
-            'pias' => Pia::with('crianca', 'criador')->where('setor_id', $setor->id)->latest()->take(10)->get(),
-            'reports' => Report::with('crianca', 'criador')->where('setor_id', $setor->id)->latest()->take(10)->get(),
-            'visitas' => VisitaTecnica::with('crianca', 'criador')->where('setor_id', $setor->id)->latest('data_visita')->take(10)->get(),
-            'pertences' => Pertence::with('crianca', 'criador')->where('setor_id', $setor->id)->latest()->take(10)->get(),
+            'pias' => Pia::query()
+                ->select(['id', 'crianca_id', 'created_by', 'setor_id', 'created_at'])
+                ->with('crianca:id,nome_completo', 'criador:id,name')
+                ->where('setor_id', $setor->id)->latest()->take(10)->get(),
+            'reports' => Report::query()
+                ->select(['id', 'crianca_id', 'created_by', 'setor_id', 'created_at'])
+                ->with('crianca:id,nome_completo', 'criador:id,name')
+                ->where('setor_id', $setor->id)->latest()->take(10)->get(),
+            'visitas' => VisitaTecnica::query()
+                ->select(['id', 'crianca_id', 'created_by', 'setor_id', 'data_visita'])
+                ->with('crianca:id,nome_completo', 'criador:id,name')
+                ->where('setor_id', $setor->id)->latest('data_visita')->take(10)->get(),
+            'pertences' => Pertence::query()
+                ->select(['id', 'crianca_id', 'created_by', 'setor_id', 'created_at'])
+                ->with('crianca:id,nome_completo', 'criador:id,name')
+                ->where('setor_id', $setor->id)->latest()->take(10)->get(),
         ];
+
+        collect($subtopicos)->each(fn ($documents) => $documents->each(function ($document): void {
+            $document->crianca?->setAppends([]);
+            $document->criador?->setAppends([]);
+        }));
 
         return Inertia::render('Setores/Show', compact('setor', 'subtopicos'));
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', Setor::class);
+
         $dados = $request->validate([
             'nome' => ['required', 'string', 'max:255', 'unique:setores,nome'],
             'descricao' => ['nullable', 'string'],
@@ -49,6 +75,8 @@ class SetorController extends Controller
 
     public function update(Request $request, Setor $setor)
     {
+        $this->authorize('update', $setor);
+
         $dados = $request->validate([
             'nome' => ['required', 'string', 'max:255', 'unique:setores,nome,'.$setor->id],
             'descricao' => ['nullable', 'string'],
@@ -61,9 +89,8 @@ class SetorController extends Controller
 
     public function destroy(Setor $setor)
     {
-        $setor->delete();
+        $this->authorize('delete', $setor);
 
-        return redirect()->route('setores.index')
-            ->with('sucesso', 'Setor removido.');
+        abort(405, 'Setores vinculados ao histórico não podem ser excluídos fisicamente.');
     }
 }

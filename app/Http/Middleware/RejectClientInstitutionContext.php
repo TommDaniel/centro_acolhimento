@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AuditRecorder;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -9,6 +10,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RejectClientInstitutionContext
 {
+    public function __construct(private AuditRecorder $audit) {}
+
     /**
      * Handle an incoming request.
      *
@@ -25,6 +28,13 @@ class RejectClientInstitutionContext
             || $this->containsContextSelector($query)
             || $this->containsContextSelector($routeParameters)
         ) {
+            $this->audit->record(
+                'access.denied.institution_context_override',
+                'denied',
+                $request->user(),
+            );
+            $request->attributes->set('_access_denial_audited', true);
+
             return response()->json([
                 'message' => 'A solicitação contém um campo não permitido.',
                 'errors' => [

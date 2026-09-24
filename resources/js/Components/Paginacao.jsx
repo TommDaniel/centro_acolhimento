@@ -1,6 +1,12 @@
 import { Link } from '@inertiajs/react';
 import { Box, Button } from '@mui/material';
 
+function rotuloSeguro(label) {
+    return String(label)
+        .replaceAll('&laquo;', '‹')
+        .replaceAll('&raquo;', '›');
+}
+
 /** Paginação Inertia a partir do array `links` do paginator do Laravel. */
 export default function Paginacao({ links }) {
     if (!links || links.length <= 3) return null;
@@ -16,8 +22,9 @@ export default function Paginacao({ links }) {
                     variant={link.active ? 'contained' : 'text'}
                     disabled={!link.url}
                     sx={{ minWidth: 36 }}
-                    dangerouslySetInnerHTML={{ __html: link.label }}
-                />
+                >
+                    {rotuloSeguro(link.label)}
+                </Button>
             ))}
         </Box>
     );

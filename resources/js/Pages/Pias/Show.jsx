@@ -1,19 +1,16 @@
-import { useState } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import {
     Box, Button, Card, Chip, Divider, IconButton, Stack, Table, TableBody, TableCell,
     TableHead, TableRow, Typography,
 } from '@mui/material';
 import {
     ArrowBack as VoltarIcon,
-    Delete as ExcluirIcon,
     Download as DownloadIcon,
     Edit as EditarIcon,
     PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
-import ConfirmDialog from '@/Components/ConfirmDialog';
 import DocMeta from '@/Components/DocMeta';
 import KvList from '@/Components/KvList';
 import SecoesDoc from '@/Components/SecoesDoc';
@@ -23,37 +20,11 @@ import { fmtData } from '@/utils/format';
 const tipoLabels = { genitora: 'Genitora', genitor: 'Genitor', responsavel: 'Responsável' };
 
 export default function Show({ pia, secoes, identificacao, familiares }) {
-    const usuario = usePage().props.auth?.user;
-    const podeAlterar = (doc) => Boolean(usuario?.is_admin) || doc.setor_id === usuario?.setor_id;
-
-    const [confirmando, setConfirmando] = useState(false);
-    const [excluindo, setExcluindo] = useState(false);
-    const [anexoParaExcluir, setAnexoParaExcluir] = useState(null);
-    const [excluindoAnexo, setExcluindoAnexo] = useState(false);
+    const podeAlterar = () => true;
 
     const todosFamiliares = familiares ?? [];
     const anexos = pia.anexos ?? [];
     const filiacao = todosFamiliares.filter((f) => ['genitora', 'genitor', 'responsavel'].includes(f.tipo));
-
-    const excluir = () => {
-        router.delete(route('pias.destroy', pia.id), {
-            preserveScroll: true,
-            onStart: () => setExcluindo(true),
-            onFinish: () => setExcluindo(false),
-        });
-    };
-
-    const excluirAnexo = () => {
-        if (!anexoParaExcluir) return;
-        router.delete(route('pias.anexos.destroy', anexoParaExcluir.id), {
-            preserveScroll: true,
-            onStart: () => setExcluindoAnexo(true),
-            onFinish: () => {
-                setExcluindoAnexo(false);
-                setAnexoParaExcluir(null);
-            },
-        });
-    };
 
     return (
         <AppLayout>
@@ -73,24 +44,14 @@ export default function Show({ pia, secoes, identificacao, familiares }) {
                             PDF
                         </Button>
                         {podeAlterar(pia) && (
-                            <>
-                                <Button
-                                    component={Link}
-                                    href={route('pias.edit', pia.id)}
-                                    variant="outlined"
-                                    startIcon={<EditarIcon />}
-                                >
-                                    Editar
-                                </Button>
-                                <Button
-                                    color="error"
-                                    variant="outlined"
-                                    startIcon={<ExcluirIcon />}
-                                    onClick={() => setConfirmando(true)}
-                                >
-                                    Excluir
-                                </Button>
-                            </>
+                            <Button
+                                component={Link}
+                                href={route('pias.edit', pia.id)}
+                                variant="outlined"
+                                startIcon={<EditarIcon />}
+                            >
+                                Editar
+                            </Button>
                         )}
                     </>
                 }
@@ -292,16 +253,6 @@ export default function Show({ pia, secoes, identificacao, familiares }) {
                                     >
                                         <DownloadIcon fontSize="small" />
                                     </IconButton>
-                                    {(usuario?.is_admin || anexo.uploaded_by === usuario?.id) && (
-                                        <IconButton
-                                            size="small"
-                                            color="error"
-                                            aria-label={`Excluir ${anexo.nome_original}`}
-                                            onClick={() => setAnexoParaExcluir(anexo)}
-                                        >
-                                            <ExcluirIcon fontSize="small" />
-                                        </IconButton>
-                                    )}
                                 </Box>
                             ))}
                         </Stack>
@@ -320,23 +271,6 @@ export default function Show({ pia, secoes, identificacao, familiares }) {
                 </Box>
             </Stack>
 
-            <ConfirmDialog
-                aberto={confirmando}
-                titulo="Excluir PIA"
-                mensagem="Tem certeza que deseja excluir este PIA? Esta ação não pode ser desfeita."
-                aoCancelar={() => setConfirmando(false)}
-                aoConfirmar={excluir}
-                processando={excluindo}
-            />
-
-            <ConfirmDialog
-                aberto={anexoParaExcluir !== null}
-                titulo="Excluir anexo"
-                mensagem={`Tem certeza que deseja excluir o anexo "${anexoParaExcluir?.nome_original}"? Esta ação não pode ser desfeita.`}
-                aoCancelar={() => setAnexoParaExcluir(null)}
-                aoConfirmar={excluirAnexo}
-                processando={excluindoAnexo}
-            />
         </AppLayout>
     );
 }

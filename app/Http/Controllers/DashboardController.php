@@ -15,6 +15,8 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Crianca::class);
+
         $totais = [
             'criancas' => Crianca::where('status', 'acolhida')->count(),
             'pias' => Pia::count(),

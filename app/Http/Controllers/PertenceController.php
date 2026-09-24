@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\AutorizaDocumento;
 use App\Http\Controllers\Concerns\EmiteOficio;
 use App\Models\Crianca;
 use App\Models\Pertence;
@@ -13,11 +12,12 @@ use Inertia\Inertia;
 
 class PertenceController extends Controller
 {
-    use AutorizaDocumento;
     use EmiteOficio;
 
     public function index()
     {
+        $this->authorize('viewAny', Pertence::class);
+
         $pertences = Pertence::with('crianca', 'criador')->latest()->paginate(15);
 
         return Inertia::render('Pertences/Index', compact('pertences'));
@@ -25,6 +25,8 @@ class PertenceController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', Pertence::class);
+
         $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')->get(['id', 'nome_completo']);
 
         return Inertia::render('Pertences/Form', [
@@ -37,6 +39,8 @@ class PertenceController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', Pertence::class);
+
         $dados = $this->validar($request);
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
@@ -51,6 +55,8 @@ class PertenceController extends Controller
 
     public function show(Pertence $pertence)
     {
+        $this->authorize('view', $pertence);
+
         $pertence->load('crianca', 'criador', 'setor');
 
         return Inertia::render('Pertences/Show', [
@@ -61,7 +67,7 @@ class PertenceController extends Controller
 
     public function edit(Pertence $pertence)
     {
-        $this->autorizarDocumento($pertence);
+        $this->authorize('update', $pertence);
 
         $criancas = Crianca::orderBy('nome_completo')->get(['id', 'nome_completo']);
 
@@ -75,7 +81,7 @@ class PertenceController extends Controller
 
     public function update(Request $request, Pertence $pertence)
     {
-        $this->autorizarDocumento($pertence);
+        $this->authorize('update', $pertence);
 
         $dados = $this->validar($request, true);
         if ($request->has('itens')) {
@@ -91,17 +97,15 @@ class PertenceController extends Controller
 
     public function destroy(Pertence $pertence)
     {
-        $this->autorizarDocumento($pertence);
+        $this->authorize('delete', $pertence);
 
-        $criancaId = $pertence->crianca_id;
-        $pertence->delete();
-
-        return redirect()->route('criancas.show', $criancaId)
-            ->with('sucesso', 'Termo de pertences removido.');
+        abort(405, 'Documentos assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function pdf(Pertence $pertence)
     {
+        $this->authorize('download', $pertence);
+
         $pertence->load('crianca', 'criador', 'setor');
 
         $arquivo = 'pertences-'.Str::slug($pertence->crianca->nome_completo).'-'.$pertence->data_entrega->format('Ymd').'.pdf';

@@ -1,18 +1,15 @@
-import { useState } from 'react';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
     Accordion, AccordionDetails, AccordionSummary, Avatar, Box, Button, Card,
     Chip, Divider, Stack, TextField, Typography,
 } from '@mui/material';
 import {
-    Delete as DeleteIcon,
     ExpandMore as ExpandMoreIcon,
     Save as SaveIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
-import ConfirmDialog from '@/Components/ConfirmDialog';
 import EmptyState from '@/Components/EmptyState';
 import { fmtData, iniciais } from '@/utils/format';
 
@@ -152,15 +149,6 @@ function CardDocumentos({ titulo, docs, rota, campoData }) {
 
 export default function Show({ setor, subtopicos }) {
     const isAdmin = Boolean(usePage().props.auth?.user?.is_admin);
-    const [confirmarExclusao, setConfirmarExclusao] = useState(false);
-    const [excluindo, setExcluindo] = useState(false);
-
-    const excluir = () => {
-        setExcluindo(true);
-        router.delete(route('setores.destroy', setor.id), {
-            onFinish: () => setExcluindo(false),
-        });
-    };
 
     return (
         <AppLayout>
@@ -178,18 +166,6 @@ export default function Show({ setor, subtopicos }) {
                         <AccordionDetails>
                             <Stack spacing={2}>
                                 <FormEditarSetor setor={setor} />
-                                <Divider />
-                                <Box>
-                                    <Button
-                                        color="error"
-                                        variant="outlined"
-                                        size="small"
-                                        startIcon={<DeleteIcon />}
-                                        onClick={() => setConfirmarExclusao(true)}
-                                    >
-                                        Excluir setor
-                                    </Button>
-                                </Box>
                             </Stack>
                         </AccordionDetails>
                     </Accordion>
@@ -216,14 +192,6 @@ export default function Show({ setor, subtopicos }) {
                 </Box>
             </Stack>
 
-            <ConfirmDialog
-                aberto={confirmarExclusao}
-                titulo="Excluir setor"
-                mensagem={`Tem certeza que deseja excluir o setor "${setor.nome}"? Os membros ficarão sem setor.`}
-                aoCancelar={() => setConfirmarExclusao(false)}
-                aoConfirmar={excluir}
-                processando={excluindo}
-            />
         </AppLayout>
     );
 }

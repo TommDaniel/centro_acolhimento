@@ -1,15 +1,12 @@
-import { useState } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { Box, Button, Card, Stack, Typography } from '@mui/material';
 import {
     ArrowBack as VoltarIcon,
-    Delete as ExcluirIcon,
     Edit as EditarIcon,
     PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
-import ConfirmDialog from '@/Components/ConfirmDialog';
 import DocMeta from '@/Components/DocMeta';
 import KvList from '@/Components/KvList';
 import SecoesDoc from '@/Components/SecoesDoc';
@@ -17,23 +14,11 @@ import CriancaAvatar from '@/Components/CriancaAvatar';
 import { fmtData, fmtHora } from '@/utils/format';
 
 export default function Show({ visita, secoes, identificacao }) {
-    const usuario = usePage().props.auth?.user;
-    const podeAlterar = (doc) => Boolean(usuario?.is_admin) || doc.setor_id === usuario?.setor_id;
-
-    const [confirmando, setConfirmando] = useState(false);
-    const [excluindo, setExcluindo] = useState(false);
+    const podeAlterar = () => true;
 
     const titulo = `Visita técnica — ${fmtData(visita.data_visita)}${
         visita.hora_visita ? ` às ${fmtHora(visita.hora_visita)}` : ''
     }`;
-
-    const excluir = () => {
-        router.delete(route('visitas-tecnicas.destroy', visita.id), {
-            preserveScroll: true,
-            onStart: () => setExcluindo(true),
-            onFinish: () => setExcluindo(false),
-        });
-    };
 
     return (
         <AppLayout>
@@ -53,24 +38,14 @@ export default function Show({ visita, secoes, identificacao }) {
                             PDF
                         </Button>
                         {podeAlterar(visita) && (
-                            <>
-                                <Button
-                                    component={Link}
-                                    href={route('visitas-tecnicas.edit', visita.id)}
-                                    variant="outlined"
-                                    startIcon={<EditarIcon />}
-                                >
-                                    Editar
-                                </Button>
-                                <Button
-                                    color="error"
-                                    variant="outlined"
-                                    startIcon={<ExcluirIcon />}
-                                    onClick={() => setConfirmando(true)}
-                                >
-                                    Excluir
-                                </Button>
-                            </>
+                            <Button
+                                component={Link}
+                                href={route('visitas-tecnicas.edit', visita.id)}
+                                variant="outlined"
+                                startIcon={<EditarIcon />}
+                            >
+                                Editar
+                            </Button>
                         )}
                     </>
                 }
@@ -115,14 +90,6 @@ export default function Show({ visita, secoes, identificacao }) {
                 </Box>
             </Stack>
 
-            <ConfirmDialog
-                aberto={confirmando}
-                titulo="Excluir visita técnica"
-                mensagem="Tem certeza que deseja excluir este registro de visita técnica? Esta ação não pode ser desfeita."
-                aoCancelar={() => setConfirmando(false)}
-                aoConfirmar={excluir}
-                processando={excluindo}
-            />
         </AppLayout>
     );
 }

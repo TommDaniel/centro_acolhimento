@@ -2,24 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\AutorizaDocumento;
 use App\Http\Controllers\Concerns\EmiteOficio;
 use App\Models\Crianca;
 use App\Models\Pia;
 use App\Models\PiaAnexo;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PiaController extends Controller
 {
-    use AutorizaDocumento;
     use EmiteOficio;
 
     public function index()
     {
+        $this->authorize('viewAny', Pia::class);
+
         $pias = Pia::with('crianca', 'criador')->latest()->paginate(15);
 
         return Inertia::render('Pias/Index', compact('pias'));
@@ -27,6 +26,8 @@ class PiaController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', Pia::class);
+
         // Campos necessários para o front pré-preencher os dados do acolhimento
         // assim que a criança é selecionada — sem redigitação.
         $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')
@@ -41,6 +42,8 @@ class PiaController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', Pia::class);
+
         $dados = $this->validar($request);
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
@@ -55,6 +58,8 @@ class PiaController extends Controller
 
     public function show(Pia $pia)
     {
+        $this->authorize('view', $pia);
+
         $pia->load('crianca.familiares', 'criador', 'setor', 'anexos.uploader');
 
         return Inertia::render('Pias/Show', [
@@ -67,7 +72,7 @@ class PiaController extends Controller
 
     public function edit(Pia $pia)
     {
-        $this->autorizarDocumento($pia);
+        $this->authorize('update', $pia);
 
         $criancas = Crianca::orderBy('nome_completo')
             ->get(['id', 'nome_completo', 'data_acolhimento', 'motivo_acolhimento', 'processo_numero', 'vara', 'comarca']);
@@ -81,7 +86,7 @@ class PiaController extends Controller
 
     public function update(Request $request, Pia $pia)
     {
-        $this->autorizarDocumento($pia);
+        $this->authorize('update', $pia);
 
         $pia->update($this->validar($request));
         $this->processarAnexos($request, $pia);
@@ -92,38 +97,22 @@ class PiaController extends Controller
 
     public function destroy(Pia $pia)
     {
-        $this->autorizarDocumento($pia);
+        $this->authorize('delete', $pia);
 
-        $criancaId = $pia->crianca_id;
-
-        foreach ($pia->anexos as $anexo) {
-            Storage::disk('public')->delete($anexo->path);
-        }
-
-        $pia->delete();
-
-        return redirect()->route('criancas.show', $criancaId)
-            ->with('sucesso', 'PIA removido.');
+        abort(405, 'Documentos assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function destroyAnexo(Request $request, PiaAnexo $anexo)
     {
-        $this->autorizarDocumento($anexo->pia);
+        $this->authorize('delete', $anexo);
 
-        abort_unless(
-            $request->user()->is_admin || $anexo->uploaded_by === $request->user()->id,
-            403,
-            'Somente o autor do envio ou um administrador pode remover o anexo.'
-        );
-
-        Storage::disk('public')->delete($anexo->path);
-        $anexo->delete();
-
-        return back()->with('sucesso', 'Anexo removido.');
+        abort(405, 'Anexos assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function pdf(Pia $pia)
     {
+        $this->authorize('download', $pia);
+
         $pia->load('crianca.familiares', 'criador', 'setor', 'anexos');
 
         $arquivo = 'pia-'.Str::slug($pia->crianca->nome_completo).'-'.$pia->created_at->format('Ymd').'.pdf';

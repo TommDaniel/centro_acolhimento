@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\AutorizaDocumento;
 use App\Http\Controllers\Concerns\EmiteOficio;
 use App\Models\Crianca;
 use App\Models\VisitaTecnica;
@@ -13,11 +12,12 @@ use Inertia\Inertia;
 
 class VisitaTecnicaController extends Controller
 {
-    use AutorizaDocumento;
     use EmiteOficio;
 
     public function index()
     {
+        $this->authorize('viewAny', VisitaTecnica::class);
+
         $visitas = VisitaTecnica::with('crianca', 'criador')->latest('data_visita')->paginate(15);
 
         return Inertia::render('Visitas/Index', compact('visitas'));
@@ -25,6 +25,8 @@ class VisitaTecnicaController extends Controller
 
     public function create(Request $request)
     {
+        $this->authorize('create', VisitaTecnica::class);
+
         $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')->get(['id', 'nome_completo']);
 
         return Inertia::render('Visitas/Form', [
@@ -37,6 +39,8 @@ class VisitaTecnicaController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', VisitaTecnica::class);
+
         $dados = $this->validar($request);
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
@@ -50,6 +54,8 @@ class VisitaTecnicaController extends Controller
 
     public function show(VisitaTecnica $visitasTecnica)
     {
+        $this->authorize('view', $visitasTecnica);
+
         $visita = $visitasTecnica->load('crianca', 'criador', 'setor');
 
         return Inertia::render('Visitas/Show', [
@@ -61,7 +67,7 @@ class VisitaTecnicaController extends Controller
 
     public function edit(VisitaTecnica $visitasTecnica)
     {
-        $this->autorizarDocumento($visitasTecnica);
+        $this->authorize('update', $visitasTecnica);
 
         $criancas = Crianca::orderBy('nome_completo')->get(['id', 'nome_completo']);
 
@@ -75,7 +81,7 @@ class VisitaTecnicaController extends Controller
 
     public function update(Request $request, VisitaTecnica $visitasTecnica)
     {
-        $this->autorizarDocumento($visitasTecnica);
+        $this->authorize('update', $visitasTecnica);
 
         $visitasTecnica->update($this->validar($request));
 
@@ -85,17 +91,15 @@ class VisitaTecnicaController extends Controller
 
     public function destroy(VisitaTecnica $visitasTecnica)
     {
-        $this->autorizarDocumento($visitasTecnica);
+        $this->authorize('delete', $visitasTecnica);
 
-        $criancaId = $visitasTecnica->crianca_id;
-        $visitasTecnica->delete();
-
-        return redirect()->route('criancas.show', $criancaId)
-            ->with('sucesso', 'Visita técnica removida.');
+        abort(405, 'Documentos assistenciais não podem ser excluídos fisicamente.');
     }
 
     public function pdf(VisitaTecnica $visitasTecnica)
     {
+        $this->authorize('download', $visitasTecnica);
+
         $visita = $visitasTecnica->load('crianca', 'criador', 'setor');
 
         $arquivo = 'visita-tecnica-'.Str::slug($visita->crianca->nome_completo).'-'.$visita->data_visita->format('Ymd').'.pdf';

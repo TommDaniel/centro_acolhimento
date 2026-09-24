@@ -23,6 +23,7 @@ test.describe('autenticação', () => {
         await expect(page.getByRole('heading', { name: 'Centro de Acolhimento' })).toBeVisible();
         await expect(page.getByLabel('Email')).toBeVisible();
         await expect(page.getByLabel('Password')).toBeVisible();
+        await expect(page.getByText('Remember me')).toHaveCount(0);
     });
 
     test('usuário fictício acessa o painel e mantém horários da agenda', async ({ page }, testInfo) => {
@@ -119,5 +120,43 @@ test.describe('autenticação', () => {
         expect([302, 303]).toContain(createAllDayResponse.status());
         await page.getByRole('button').filter({ hasText: allDayTitle }).filter({ hasText: 'Dia inteiro' }).first().click();
         await expect(page.getByRole('dialog').filter({ hasText: allDayTitle }).getByText(/Dia inteiro/)).toBeVisible();
+    });
+
+    test('administradora consulta auditoria e técnica recebe acesso negado', async ({ browser }) => {
+        const adminContext = await browser.newContext();
+        const adminPage = await adminContext.newPage();
+        await adminPage.goto('/login');
+        await adminPage.getByLabel('Email').fill('admin@poc.local');
+        await adminPage.getByLabel('Password').fill('password');
+        await Promise.all([
+            adminPage.waitForURL(/\/dashboard$/),
+            adminPage.getByRole('button', { name: 'Log in' }).click(),
+        ]);
+        await adminPage.goto('/auditoria');
+        await expect(adminPage.getByRole('heading', { name: 'Auditoria funcional' })).toBeVisible();
+        await adminContext.close();
+
+        const technicalContext = await browser.newContext({
+            viewport: { width: 390, height: 844 },
+        });
+        const technicalPage = await technicalContext.newPage();
+        await technicalPage.goto('/login');
+        await technicalPage.getByLabel('Email').fill('bruno@poc.local');
+        await technicalPage.getByLabel('Password').fill('password');
+        await Promise.all([
+            technicalPage.waitForURL(/\/dashboard$/),
+            technicalPage.getByRole('button', { name: 'Log in' }).click(),
+        ]);
+        const deniedResponse = await technicalPage.goto('/auditoria');
+        expect(deniedResponse.status()).toBe(403);
+        const deniedHeading = technicalPage.getByRole('heading', {
+            name: 'Você não tem permissão para acessar esta área',
+        });
+        await expect(deniedHeading).toBeVisible();
+        await expect(deniedHeading).toBeFocused();
+        await expect(technicalPage.getByText('/auditoria')).toHaveCount(0);
+        await technicalPage.keyboard.press('Tab');
+        await expect(technicalPage.getByRole('link', { name: 'Ir para o acesso ao sistema' })).toBeFocused();
+        await technicalContext.close();
     });
 });

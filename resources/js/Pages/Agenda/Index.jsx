@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -14,13 +14,11 @@ import {
 import {
     Add as AddIcon,
     CheckCircle as ConcluirIcon,
-    Delete as DeleteIcon,
     Edit as EditIcon,
     Undo as ReabrirIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import CriancaSelect from '@/Components/CriancaSelect';
-import ConfirmDialog from '@/Components/ConfirmDialog';
 import EmptyState from '@/Components/EmptyState';
 import PageHeader from '@/Components/PageHeader';
 
@@ -65,16 +63,11 @@ function resumoDataHora(ev) {
 }
 
 export default function Index({ eventos, criancas, tipos }) {
-    const usuario = usePage().props.auth?.user;
-
-    // Admin altera tudo; servidor só altera eventos do próprio setor (mas vê tudo).
-    const podeAlterar = (ev) => Boolean(usuario?.is_admin) || ev.setor_id === usuario?.setor_id;
+    const podeAlterar = () => true;
 
     const [dialogForm, setDialogForm] = useState(false);
     const [eventoEdicao, setEventoEdicao] = useState(null);
     const [detalhes, setDetalhes] = useState(null);
-    const [excluirEv, setExcluirEv] = useState(null);
-    const [excluindo, setExcluindo] = useState(false);
 
     const form = useForm({
         titulo: '',
@@ -158,17 +151,6 @@ export default function Index({ eventos, criancas, tipos }) {
         router.patch(route('agenda.concluido', ev.id), {}, {
             preserveScroll: true,
             onSuccess: () => setDetalhes(null),
-        });
-    };
-
-    const excluirEvento = () => {
-        router.delete(route('agenda.destroy', excluirEv.id), {
-            preserveScroll: true,
-            onStart: () => setExcluindo(true),
-            onFinish: () => {
-                setExcluindo(false);
-                setExcluirEv(null);
-            },
         });
     };
 
@@ -438,31 +420,12 @@ export default function Index({ eventos, criancas, tipos }) {
                                 <Button startIcon={<EditIcon />} onClick={() => abrirEdicao(detalhes)}>
                                     Editar
                                 </Button>
-                                <Box sx={{ flex: 1 }} />
-                                <Button
-                                    color="error"
-                                    startIcon={<DeleteIcon />}
-                                    onClick={() => {
-                                        setExcluirEv(detalhes);
-                                        setDetalhes(null);
-                                    }}
-                                >
-                                    Excluir
-                                </Button>
                             </DialogActions>
                         )}
                     </>
                 )}
             </Dialog>
 
-            <ConfirmDialog
-                aberto={excluirEv !== null}
-                titulo="Excluir compromisso"
-                mensagem={`Tem certeza que deseja excluir "${excluirEv?.titulo}"? Esta ação não pode ser desfeita.`}
-                aoCancelar={() => setExcluirEv(null)}
-                aoConfirmar={excluirEvento}
-                processando={excluindo}
-            />
         </AppLayout>
     );
 }

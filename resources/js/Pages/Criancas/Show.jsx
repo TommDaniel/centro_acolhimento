@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
     Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent,
@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import {
     Add as AddIcon,
-    Delete as DeleteIcon,
     Download as DownloadIcon,
     Edit as EditIcon,
     PictureAsPdf as PdfIcon,
@@ -15,7 +14,6 @@ import {
     Visibility as VerIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
-import ConfirmDialog from '@/Components/ConfirmDialog';
 import CriancaAvatar from '@/Components/CriancaAvatar';
 import DocMeta from '@/Components/DocMeta';
 import EmptyState from '@/Components/EmptyState';
@@ -110,19 +108,10 @@ function CartaoDocumentos({ titulo, itens, hrefNovo, dataDe, chipDe, rotaShow, r
     );
 }
 
-export default function Show({ crianca, identificacao }) {
-    const usuario = usePage().props.auth?.user;
+export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
+    const podeAlterar = () => true;
 
-    // Admin altera tudo; servidor só altera documentos do próprio setor (mas vê tudo).
-    const podeAlterar = (doc) => Boolean(usuario?.is_admin || doc.setor_id === usuario?.setor_id);
-
-    const [confirmarExclusao, setConfirmarExclusao] = useState(false);
-    const [excluindo, setExcluindo] = useState(false);
-    const [docParaExcluir, setDocParaExcluir] = useState(null);
-    const [excluindoDoc, setExcluindoDoc] = useState(false);
     const [dialogFamiliar, setDialogFamiliar] = useState(false);
-    const [familiarParaExcluir, setFamiliarParaExcluir] = useState(null);
-    const [excluindoFamiliar, setExcluindoFamiliar] = useState(false);
 
     const upload = useForm({ anexos: [] });
 
@@ -166,35 +155,6 @@ export default function Show({ crianca, identificacao }) {
             onSuccess: () => {
                 setDialogFamiliar(false);
                 formFamiliar.reset();
-            },
-        });
-    };
-
-    const excluirCrianca = () => {
-        router.delete(route('criancas.destroy', crianca.id), {
-            onStart: () => setExcluindo(true),
-            onFinish: () => setExcluindo(false),
-        });
-    };
-
-    const excluirDocumento = () => {
-        router.delete(route('documentos.destroy', docParaExcluir.id), {
-            preserveScroll: true,
-            onStart: () => setExcluindoDoc(true),
-            onFinish: () => {
-                setExcluindoDoc(false);
-                setDocParaExcluir(null);
-            },
-        });
-    };
-
-    const excluirFamiliar = () => {
-        router.delete(route('familiares.destroy', familiarParaExcluir.id), {
-            preserveScroll: true,
-            onStart: () => setExcluindoFamiliar(true),
-            onFinish: () => {
-                setExcluindoFamiliar(false);
-                setFamiliarParaExcluir(null);
             },
         });
     };
@@ -297,20 +257,15 @@ export default function Show({ crianca, identificacao }) {
                                 >
                                     Editar
                                 </Button>
-                                {usuario?.is_admin && (
-                                    <Button
-                                        variant="outlined"
-                                        color="error"
-                                        startIcon={<DeleteIcon />}
-                                        onClick={() => setConfirmarExclusao(true)}
-                                    >
-                                        Excluir
-                                    </Button>
-                                )}
                             </Stack>
                         </Stack>
                         <Box sx={{ mt: 1.5 }}>
                             <DocMeta doc={{ criador: crianca.criador, created_at: crianca.created_at }} />
+                            {ultimaAtualizacao && (
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                    Atualizado por {ultimaAtualizacao.author} em {fmtDataHora(ultimaAtualizacao.at)}
+                                </Typography>
+                            )}
                         </Box>
                     </CardContent>
                 </Card>
@@ -368,14 +323,6 @@ export default function Show({ crianca, identificacao }) {
                                                     </Typography>
                                                 )}
                                             </Box>
-                                            <IconButton
-                                                size="small"
-                                                color="error"
-                                                aria-label={`Excluir ${f.nome}`}
-                                                onClick={() => setFamiliarParaExcluir(f)}
-                                            >
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
                                         </Box>
                                     </motion.div>
                                 ))}
@@ -479,16 +426,6 @@ export default function Show({ crianca, identificacao }) {
                                         >
                                             <DownloadIcon fontSize="small" />
                                         </IconButton>
-                                        {(usuario?.is_admin || doc.uploaded_by === usuario?.id) && (
-                                            <IconButton
-                                                size="small"
-                                                color="error"
-                                                aria-label={`Excluir ${doc.nome_original}`}
-                                                onClick={() => setDocParaExcluir(doc)}
-                                            >
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
-                                        )}
                                     </Box>
                                 ))}
                             </Stack>
@@ -551,32 +488,6 @@ export default function Show({ crianca, identificacao }) {
                 </Box>
             </Dialog>
 
-            <ConfirmDialog
-                aberto={confirmarExclusao}
-                titulo="Excluir cadastro"
-                mensagem={`Tem certeza que deseja excluir ${crianca.nome_completo}? Todos os documentos vinculados (PIAs, visitas, ocorrências, pertences e anexos) também serão removidos. Esta ação não pode ser desfeita.`}
-                aoCancelar={() => setConfirmarExclusao(false)}
-                aoConfirmar={excluirCrianca}
-                processando={excluindo}
-            />
-
-            <ConfirmDialog
-                aberto={docParaExcluir !== null}
-                titulo="Excluir anexo"
-                mensagem={`Tem certeza que deseja excluir o anexo "${docParaExcluir?.nome_original}"? Esta ação não pode ser desfeita.`}
-                aoCancelar={() => setDocParaExcluir(null)}
-                aoConfirmar={excluirDocumento}
-                processando={excluindoDoc}
-            />
-
-            <ConfirmDialog
-                aberto={familiarParaExcluir !== null}
-                titulo="Excluir familiar"
-                mensagem={`Tem certeza que deseja excluir ${familiarParaExcluir?.nome} da composição familiar? Esta ação não pode ser desfeita.`}
-                aoCancelar={() => setFamiliarParaExcluir(null)}
-                aoConfirmar={excluirFamiliar}
-                processando={excluindoFamiliar}
-            />
         </AppLayout>
     );
 }

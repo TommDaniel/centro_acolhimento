@@ -1,13 +1,23 @@
 <?php
 
-use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Middleware\AssignCorrelationId;
+use App\Http\Middleware\AuditAuthorizationDenials;
+use App\Http\Middleware\EnsureUserHasApprovedAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RejectClientInstitutionContext;
+use App\Http\Middleware\RejectRememberedSession;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Session\Middleware\AuthenticateSession;
+use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 $app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,18 +28,60 @@ $app = Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             RejectClientInstitutionContext::class,
+            AssignCorrelationId::class,
+            RejectRememberedSession::class,
+            AuditAuthorizationDenials::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         $middleware->alias([
-            'admin' => EnsureUserIsAdmin::class,
+            'approved' => EnsureUserHasApprovedAccess::class,
         ]);
+
+        $middleware->appendToPriorityList(
+            AuthenticatesRequests::class,
+            AssignCorrelationId::class,
+        );
+        $middleware->appendToPriorityList(
+            AssignCorrelationId::class,
+            RejectRememberedSession::class,
+        );
+        $middleware->appendToPriorityList(
+            RejectRememberedSession::class,
+            AuthenticateSession::class,
+        );
+        $middleware->appendToPriorityList(
+            AuthenticateSession::class,
+            EnsureUserHasApprovedAccess::class,
+        );
+        $middleware->appendToPriorityList(
+            EnsureUserHasApprovedAccess::class,
+            RejectClientInstitutionContext::class,
+        );
+        $middleware->appendToPriorityList(
+            RejectClientInstitutionContext::class,
+            SubstituteBindings::class,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request): Response {
+            $correlationId = Context::get('correlation_id');
+
+            if ($response->getStatusCode() === 403 && ! $request->expectsJson()) {
+                $response = Inertia::render('Errors/Forbidden')->toResponse($request);
+                $response->setStatusCode(403);
+            }
+
+            if (is_string($correlationId) && Str::isUuid($correlationId)) {
+                $response->headers->set('X-Correlation-ID', $correlationId);
+            }
+
+            return $response;
+        });
     })->create();
 
 // Exceção temporária para a demonstração sintética legada na Vercel.
