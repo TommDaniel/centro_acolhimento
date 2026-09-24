@@ -1,6 +1,6 @@
 # ADR 0004 — Organização e unidade únicas
 
-- Status: aceito como decisão de produto e arquitetura; implementação pendente
+- Status: aceito; fundação física `ARQ-01B/ARQ-06A` concluída e validada em 10/09/2026
 - Data: 28/08/2026
 - Tarefas: `DEC-05`, `DEC-06`, `IAM-03`, `ARQ-01`, `ARQ-06`, `SEG-02`, `SEG-03`, `ACO-01`, `DOC-04`, `DOC-05`, `QA-01`
 - Detalhamento: [arquitetura-alvo](../architecture/target-architecture.md)
@@ -15,7 +15,7 @@ A POC atual não possui entidades nem chaves consistentes para esse contexto, em
 
 Os dados incluem identificação, saúde, documentos judiciais, fotografias e vínculos familiares de crianças e adolescentes. Mesmo com apenas uma organização e uma unidade, o contexto não deve ficar implícito em texto, configuração dispersa ou campo enviado pela interface. Ao mesmo tempo, implementar agora tenancy SaaS ou multiunidade criaria vínculos, telas, filtros, Policies e testes sem necessidade aprovada.
 
-Esta ADR conclui `DEC-05` somente no nível documental. Não afirma que tabelas, chaves, migrações, Policies ou testes já existam.
+Esta ADR concluiu `DEC-05` no nível documental. O corte `ARQ-01B/ARQ-06A` agora materializa tabelas, chaves nullable, provisionamento/backfill e proteção dos novos writes; ainda não conclui Policies/RBAC, auditoria, `NOT NULL` nem infraestrutura produtiva.
 
 ## Opções consideradas
 
@@ -72,8 +72,10 @@ A migração será aditiva, verificável e compatível com roll-forward, sem `mi
 4. mapear explicitamente pessoas, episódios, usuários, documentos e demais registros aplicáveis para o único contexto;
 5. gerar reconciliação por contagens e identificadores técnicos, sem PII, e bloquear o avanço diante de órfão ou relação inconsistente;
 6. atualizar a aplicação para gravar e resolver o contexto no backend, sem aceitar seleção pelo cliente;
-7. somente após backfill e validação aplicar `NOT NULL`, foreign keys, unicidades e índices definitivos;
+7. somente após backfill e validação aplicar `NOT NULL`; FKs, `UNIQUE`, `CHECK` e os índices necessários à integridade já entram no corte aditivo com colunas nullable;
 8. comprovar em PostgreSQL integridade, autorização, numeração concorrente e restauração antes de go-live.
+
+O corte inicial executa os passos 1 a 6 por migrations aditivas e pelo comando idempotente `institution:provision-context`. FKs, `UNIQUE`, `CHECK` e índices de suporte já protegem o schema durante essa fase; somente a nulabilidade é mantida deliberadamente para o rollout. O passo 7 foi separado em `ARQ-01C` e só pode ocorrer após reconciliação no ambiente-alvo. O runbook está em [`docs/development/institution-context.md`](../development/institution-context.md).
 
 Rollback operacional retorna à imagem anterior apenas enquanto compatível com o schema aditivo. Dados e colunas criados são preservados; falhas são corrigidas por migration adiante. Não se apaga histórico, organização, unidade ou vínculos para desfazer a implantação.
 

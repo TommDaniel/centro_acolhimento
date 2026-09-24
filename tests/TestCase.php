@@ -2,12 +2,27 @@
 
 namespace Tests;
 
+use App\Actions\ProvisionInstitutionContext;
 use App\Support\DestructiveTestDatabaseGuard;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Schema;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (
+            getenv('SKIP_TEST_CONTEXT_PROVISION') !== 'true'
+            && Schema::hasTable('organizacoes')
+            && Schema::hasTable('unidades')
+        ) {
+            app(ProvisionInstitutionContext::class)->handle();
+        }
+    }
+
     public function createApplication(): Application
     {
         DestructiveTestDatabaseGuard::synchronizeValidatedEnvironment(

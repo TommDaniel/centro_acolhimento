@@ -1,12 +1,12 @@
 # Modelo de ameaças — Centro de Acolhimento
 
-Escopo: aplicação Laravel/Inertia, banco, arquivos, PDFs, autenticação, agenda, relatórios e operação atuais, além das fronteiras **planejadas** de Redis/Horizon, Swarm, Gmail/OAuth/Pub/Sub, PWA/Web Push e eventual LLM. Revisar este documento em mudanças de arquitetura, fornecedor, permissão, dados ou integração.
+Escopo: aplicação Laravel/Inertia, banco, arquivos, PDFs, autenticação, agenda, relatórios e operação atuais, além das fronteiras **planejadas** de Redis/Horizon, Swarm, Gmail/OAuth/Pub/Sub e PWA/Web Push. LLM está fora da fase atual por `DEC-11`; uma fronteira futura só existe após reabertura formal. Revisar este documento em mudanças de arquitetura, fornecedor, permissão, dados ou integração.
 
 ## Estado do desenho
 
-- **Implementado hoje na POC:** Laravel/Inertia, autenticação local incompleta e fundação PostgreSQL 17 concluída no Docker local/CI (`ARQ-01A` em 31/08/2026), ainda com arquivos locais/públicos. O SQLite sintético antigo não é migrado e só permanece operacional na demo efêmera quando `VERCEL=true`, nunca para dados reais. O cadastro público está **CONTROLADO por `SEG-01A` em 26/08/2026**, com rotas ausentes e PHPUnit/E2E aprovados; Fortify/TOTP/lifecycle, autorização ampla e ausência de auditoria permanecem riscos abertos em `SEG-01/02/03`.
-- **Aprovado como alvo, ainda não implementado:** uma organização e uma unidade/local/complexo com várias casas internas; PostgreSQL produtivo na Contabo com TLS/roles mínimas/backup/restore; três Redis separados; Horizon; object storage privado; Swarm single-node; cofre; Fortify e MFA TOTP obrigatório para toda conta humana.
-- **Pendente de decisão/gates e não autorizado para dados reais:** Gmail/OAuth/Pub/Sub, PWA/Web Push e LLM. Linhas tracejadas no diagrama representam essas fronteiras futuras.
+- **Implementado hoje na POC:** Laravel/Inertia, autenticação local incompleta, fundação PostgreSQL 17 no Docker local/CI (`ARQ-01A`) e contexto explícito de uma organização/unidade (`ARQ-01B/ARQ-06A`, ainda com FKs nullable até `ARQ-01C`). Arquivos continuam locais/públicos. O SQLite sintético antigo não é migrado e só permanece operacional na demo efêmera quando `VERCEL=true`, nunca para dados reais. O cadastro público está **CONTROLADO por `SEG-01A` em 26/08/2026**; Fortify/TOTP/lifecycle, Policies e auditoria permanecem riscos abertos em `SEG-01/02/03`.
+- **Aprovado como alvo, ainda não implementado:** PostgreSQL produtivo na Contabo com TLS/roles mínimas/backup/restore; três Redis separados; Horizon; object storage privado externo; Swarm single-node; cofre; Fortify e MFA TOTP obrigatório para toda conta humana. O perfil 4 vCPU/8 GB/100 GB SSD é candidato sujeito a `ARQ-07`. Contratar o auto backup pago da Contabo foi aprovado em 16/09/2026 como camada complementar, mas o serviço ainda não está ativo/validado e não comprova capacidade ou continuidade.
+- **Pendente de gates e não autorizado para dados reais:** Gmail de consumidor via OAuth web/offline e PWA/Web Push. O tipo Gmail, ausência de senha compartilhada, opt-in contextual e push genérico sem PII estão decididos, mas integração, Limited Use, plataformas, lifecycle e controles operacionais permanecem abertos. LLM está explicitamente desligada nesta fase.
 
 Documentar um controle planejado não reduz o risco. Ele só passa a `CONTROLADO` após implementação, testes positivos/negativos, evidência operacional e aprovações exigidas.
 
@@ -14,7 +14,7 @@ Documentar um controle planejado não reduz o risco. Ele só passa a `CONTROLADO
 
 - identidade, família, processo judicial e localização de crianças/adolescentes;
 - saúde, medicações, exames e saúde sexual/reprodutiva;
-- fotos, anexos, os cinco tipos documentais aprovados, PDFs e assinaturas;
+- fotos, anexos, os cinco tipos documentais aprovados, PDFs e identificação dos profissionais selecionados, sem assinatura eletrônica/digital nesta fase;
 - credenciais, sessões, permissões e trilha de auditoria;
 - segredos TOTP, recovery codes, tokens OAuth, subscriptions Web Push e chaves de criptografia/backup;
 - integridade do histórico, numeração documental e indicadores oficiais;
@@ -40,8 +40,8 @@ flowchart LR
 
     G["Gmail planejado"] -.->|"conteúdo não confiável"| PS["Google Pub/Sub planejado"]
     PS -.->|"push autenticado + replay"| W
-    H -.->|"OAuth pendente DEC-08"| G
-    H -.->|"somente após DEC-11"| AI["LLM eventual"]
+    H -.->|"OAuth consumer após ADR/PoC"| G
+    H -.->|"somente após reabertura formal"| AI["LLM fora da fase atual"]
     H -.->|"push genérico"| PUSH["Web Push planejado"]
     PUSH -.-> C
 
@@ -59,7 +59,7 @@ Cada seta cruza uma fronteira: navegador/service worker é não confiável; auto
 
 | ID | Cenário | Impacto | Controles e evidência exigida |
 |---|---|---|---|
-| T01 | IDOR ao trocar ID de criança, atendimento, anexo ou PDF | Exposição grave de menor | Policies por ação, query scoping por unidade/vínculo/sensibilidade, testes negativos por rota |
+| T01 | IDOR ao trocar ID de criança, atendimento, anexo ou PDF, ou executar ação especial não autorizada | Exposição grave de menor | Policies por recurso/ação e contexto único do backend; setor/equipe/responsável são filtros/atribuições, não isolamento assistencial; download, exportação, cancelamento e gestão permanecem ações separadamente autorizadas e testadas |
 | T02 | Conta pública, sem TOTP, inativa, recaller indevido ou sessão não revogada | Acesso não autorizado | Cadastro público CONTROLADO por `SEG-01A` em 26/08/2026, com regressão obrigatória de GET/POST; Fortify + TOTP obrigatório para toda conta humana permanece aberto em `SEG-01`, assim como estados `pendente_mfa`/`password_only` fail-closed, ausência de passkey/remember-me, rate limit, step-up, inativação/revogação e auditoria de login/MFA |
 | T03 | Upload disfarçado, SVG/HTML ativo, bomba de imagem/PDF ou malware | RCE indireta, leitura local, DoS | Storage privado, assinatura/MIME real, limites, EXIF, quarentena, antimalware, render isolado |
 | T04 | URL pública/permanente ou artefato de CI contém foto/documento | Vazamento em massa | Download via Policy/URL curta, auditoria, artifacts sintéticos e retenção curta |
@@ -71,21 +71,21 @@ Cada seta cruza uma fronteira: navegador/service worker é não confiável; auto
 | T10 | CSRF, brute force, enumeração e abuso de exportação/PDF | Ação indevida/DoS | CSRF, rate limits por ação, filas, limites, respostas não enumeráveis e alertas |
 | T11 | Deploy/teste executa reset/seed no banco errado, inclusive por `DB_URL` ou config cache inseguro, ou filesystem efêmero perde banco/arquivo | Perda total/divergência | PostgreSQL e storage duráveis, migrations incrementais, ambientes separados, restore testado; bootstrap e comando E2E validam ambiente do processo e configuração efetiva antes de consultar/resetar, aceitando somente PostgreSQL local e `centro_acolhimento_test` |
 | T12 | Backup, fornecedor ou suporte amplia acesso/transferência | Exposição fora do app | Criptografia, menor privilégio, DPA/suboperadores/região, logging, retenção e plano de saída |
-| T13 | Cliente adultera organização/unidade ou casa é tratada como tenant/permissão | Escopo inconsistente e exposição entre casos | Contexto único resolvido no backend, requests não atribuem organização/unidade; casa é localização interna; `DEC-01` decide histórico; Policies continuam por papel/setor/vínculo/sensibilidade |
-| T14 | Token OAuth Gmail excessivo, vazado, não revogável ou vinculado à identidade coletiva | Leitura indevida da caixa institucional | `DEC-08`, menor escopo, principal da aplicação separado, credencial criptografada/rotacionável, revogação/blast radius, Limited Use e PoC sintética antes de dados reais |
+| T13 | Cliente adultera organização/unidade ou casa é tratada como tenant/permissão; evasão/internação encerra episódio indevidamente | Escopo inconsistente, exposição entre casos e perda do histórico | Contexto único resolvido no backend, requests não atribuem organização/unidade; casa é localização interna; `DEC-01A` mantém episódio aberto e retorno cria movimentação append-only; `DEC-01` ainda decide histórico entre casas; Policies continuam pendentes por papel/recurso/ação |
+| T14 | Token OAuth Gmail excessivo, vazado, não revogável ou obtido por senha/service account incompatível | Leitura indevida da caixa institucional | Conta consumer; OAuth web consentido/offline, menor escopo, principal separado, credencial criptografada/rotacionável, titularidade, revogação/blast radius, Limited Use e PoC sintética antes de dados reais; senha, service account e domain-wide delegation proibidos |
 | T15 | Push Pub/Sub forjado, repetido, perdido ou histórico Gmail expirado | Evento duplicado, omitido ou conteúdo falso | Autenticar origem/assinatura conforme rota aprovada, chave de idempotência, checkpoint, reconciliação `history.list`, bootstrap/full sync e nenhum efeito jurídico automático |
-| T16 | E-mail malicioso induz ação, URL/tool call ou falsa extração de prazo | Fraude, exfiltração e compromisso jurídico incorreto | Entrada não confiável, parsing isolado, allowlist de operações, sem execução/chamada externa, proposta sem efeito e revisão humana conforme `DEC-09/11` |
+| T16 | E-mail malicioso induz ação, URL/tool call ou falsa extração de prazo | Fraude, exfiltração e compromisso jurídico incorreto | Entrada não confiável; `DEC-09` permite somente datas literais e classifica compromisso/prazo/mera menção; sem execução/chamada externa, agenda ou lembrete antes da aprovação humana. Data relativa fica ambígua e não é calculada. Correção posterior cria revisão append-only com justificativa e reagenda jobs idempotentemente |
 | T17 | Service worker/cache/offline/bfcache preserva dados após logout ou troca de usuário | Exposição no dispositivo compartilhado/perdido | PWA começa network-only, não cacheia respostas autenticadas/PII; limpeza/revalidação em logout/inativação/troca; testes de Cache Storage, IndexedDB, storage e bfcache |
-| T18 | Push revela nome, processo, diagnóstico/prazo sensível ou chega a aparelho revogado | Vazamento na tela bloqueada | Opt-in, payload genérico sem PII, detalhe apenas após login/Policy, inventário/revogação por dispositivo, revalidação do job e tratamento 404/410 |
+| T18 | Push revela nome, processo, diagnóstico/prazo sensível ou chega a aparelho revogado | Vazamento na tela bloqueada | Opt-in contextual, nunca no primeiro carregamento; payload genérico sem PII, detalhe apenas após login/Policy, inventário/revogação por dispositivo, revalidação do job e tratamento 404/410; lembrete funcional padrão no dia civil anterior às 09:00 em `America/Sao_Paulo`; plataformas, quiet hours e fallback ainda pendentes |
 | T19 | Redis/Horizon expõe sessão, payload, failed job ou permite replay após restore | Sequestro de sessão e vazamento secundário | Três Redis isolados; IDs opacos; payload mínimo; trim/redação; `/horizon` por Gate/rede; outbox; restore invalida/revalida sessões e retries |
-| T20 | Swarm/cofre/backup compartilha segredo/domínio de falha ou restore não recupera chaves | Perda total, indisponibilidade ou acesso indevido | Secrets por ambiente, cofre/escrow segregado e versionado, unlock key separada, backup fora da VPS, roles mínimas, restore integral e RPO/RTO testados |
-| T21 | LLM recebe dados Gmail/assistenciais, retém/treina ou obedece prompt injection | Transferência indevida, exfiltração e decisão incorreta | LLM bloqueado para dados reais até `DEC-11`, RIPD/DPA/no-training/região/retenção/saída, corpus sintético, minimização e revisão humana obrigatória |
-| T22 | Administradora se promove a `equipe_tecnica`, delega papel fora da allowlist ou usa sessão sem step-up | Elevação de privilégio e acesso assistencial indevido | Alvo obrigatoriamente terceiro, Policy backend, allowlist fechada, step-up senha + TOTP de no máximo 5 minutos, alerta/auditoria, bootstrap inicial fora do fluxo comum e testes negativos |
+| T20 | Swarm/cofre/backup compartilha segredo/domínio de falha, fica somente na VPS ou restore não recupera chaves/objetos | Perda total, indisponibilidade ou acesso indevido | Separação em containers é apenas lógica; secrets por ambiente, cofre/escrow segregado, unlock key separada, base + WAL/PITR e objetos criptografados fora da VPS, roles mínimas e restore integral testado. Auto backup pago está aprovado para contratação, mas continua complemento sujeito a validação de escopo/consistência/região/retenção/restore; cópia local nunca é única estratégia e retenção de cinco anos depende de `LGPD-03` |
+| T21 | Uma futura LLM recebe dados Gmail/assistenciais, retém/treina ou obedece prompt injection | Transferência indevida, exfiltração e decisão incorreta | `DEC-11` mantém LLM desligada nesta fase. Reabertura exige RIPD, fornecedor/DPA/no-training/Limited Use/região/retenção/saída, corpus sintético, minimização e revisão humana; nunca URL, ferramenta, persistência, agenda ou notificação autônoma |
+| T22 | Administradora ou técnica tenta ampliar papel, acessar administração operacional ou alterar/apagar histórico/auditoria | Elevação de privilégio e perda de evidência | Mesmos direitos assistenciais aprovados para as duas contas, mas somente administradora gerencia terceiros/contas e consulta auditoria funcional minimizada em modo read-only; Policies backend, allowlist fechada, step-up, trilha append-only e testes negativos. Técnicas veem autoria/data no recurso, não administram auditoria/segredos/infraestrutura; nenhuma delas altera/apaga trilha ou controle |
 
 ## Abuse cases obrigatórios para QA
 
-1. Usuário autenticado acessa URL/ID de outro setor ou unidade.
-2. Usuário comum envia `role`, `unidade_id`, `created_by`, status final ou campos sensíveis extras.
+1. Usuário autenticado troca URL/ID para executar ação de recurso não autorizada; administradora e técnica com a mesma ação assistencial aprovada recebem o mesmo acesso, independentemente de setor/equipe/responsável.
+2. Cliente envia `role`, `unidade_id`, `created_by`, status final ou campos sensíveis extras; ação administrativa, download, exportação ou cancelamento sem permissão própria falha.
 3. Atacante envia arquivo com extensão permitida e conteúdo diferente, imagem com dimensões enormes e SVG com referência local.
 4. Dois requests simultâneos criam o mesmo número, encerram a mesma medicação ou fazem transições conflitantes.
 5. Documento final é alterado após mudança do cadastro ou por update direto.
@@ -100,26 +100,28 @@ Cada seta cruza uma fronteira: navegador/service worker é não confiável; auto
 14. Push para aparelho perdido/revogado ou subscription 404/410 não é reenviado; payload e lockscreen não contêm PII.
 15. Usuário comum e `password_only` não acessam `/horizon`; jobs, failed jobs, métricas e logs não contêm e-mail, narrativa, token ou documento.
 16. Restore integral recupera PostgreSQL/objetos/chaves dentro do RPO/RTO sem reativar sessão/recaller revogado; ausência do cofre ou backup fora da VPS falha o gate.
-17. Eventual LLM permanece desligado para dados reais e corpus sintético adversarial não aciona ferramenta, URL, persistência ou efeito jurídico.
-18. Administradora tenta atribuir `equipe_tecnica` a si mesma, delegar papel fora da allowlist ou usar sessão sem step-up recente; todas as tentativas falham sem mudança parcial e geram alerta/auditoria minimizados.
+17. LLM permanece desligada nesta fase; em eventual PoC futura, corpus sintético adversarial não aciona ferramenta, URL, persistência, agenda, notificação ou efeito jurídico.
+18. Administradora ou técnica tenta ampliar o próprio papel, administrar auditoria/segredo/infraestrutura ou editar/apagar histórico; todas as tentativas falham sem mudança parcial e geram alerta/auditoria minimizados.
 19. Teste recebe `DB_URL`, host, driver, ambiente, banco ou config cache divergente; o bootstrap/comando falha antes da primeira consulta e nunca alcança `migrate:fresh`. Agenda criada/editada em `America/Sao_Paulo` mantém o mesmo horário civil após persistência UTC, inclusive em dia inteiro.
+20. Proposta sintética com data literal só cria agenda após aprovação; data relativa permanece ambígua. Correção após aprovação preserva a revisão anterior, exige justificativa, invalida o job antigo e cria no máximo um lembrete corrente; horário padrão já passado e fim de semana/feriado exigem escolha explícita sem envio retroativo.
+21. Administradora consulta a auditoria funcional em modo somente leitura sem receber narrativa/PII/valor sensível; tentativa de alteração/exclusão falha. Técnica vê autoria/data do recurso autorizado, mas não acessa consulta operacional irrestrita.
 
 ## Riscos de go-live ainda abertos
 
-Os bloqueadores P0 de `TODO.md` permanecem: arquivos públicos, autorização ampla, ausência de auditoria, PostgreSQL produtivo sem TLS/roles/backup/restore, retenção/RIPD e recuperação não aprovadas. O cadastro público foi CONTROLADO por `SEG-01A` em 26/08/2026, mas Fortify/TOTP/lifecycle continuam abertos em `SEG-01`. `ARQ-01A` controla somente o risco de banco efêmero e deploy destrutivo na fundação local/CI; Redis/Horizon, Swarm/cofre/restore e storage privado continuam sendo alvo sem evidência produtiva. Gmail/PWA/LLM continuam bloqueados para dados reais pelos seus gates. Este modelo não declara a POC segura para dados reais.
+Os bloqueadores P0 de `TODO.md` permanecem: arquivos públicos, Policies e auditoria ausentes, PostgreSQL produtivo sem TLS/roles/backup/restore, retenção/RIPD e recuperação não aprovadas. O cadastro público foi CONTROLADO por `SEG-01A`, mas Fortify/TOTP/lifecycle continuam abertos. `ARQ-01A/01B/06A` controlam somente a fundação local/CI e contexto único; `ARQ-01C`, Redis/Horizon, Swarm/cofre/restore e storage privado continuam sem evidência produtiva. Gmail/PWA permanecem bloqueados para dados reais pelos gates; LLM não integra a fase atual. Este modelo não declara a POC segura para dados reais.
 
-| Risco em 26/08/2026 | Estado | Evidência atual | Responsável/tarefa |
+| Risco em 16/09/2026 | Estado | Evidência atual | Responsável/tarefa |
 |---|---|---|---|
 | Cadastro público | `CONTROLADO em 26/08/2026` | `SEG-01A`: rotas GET/POST ausentes; PHPUnit de registro/autenticação 6/6 (14 assertivas) e E2E desktop/mobile 6/6; abuse case GET/POST permanece regressivo | Engenharia / `SEG-01A`; controles restantes de identidade em `SEG-01` |
 | TOTP obrigatório/lifecycle de sessão | `PLANEJADO — BLOCKER` | `DEC-07` aprovado, Fortify/TOTP/step-up/revogação ainda não implementados | Engenharia / `SEG-01`, `IAM-02` |
 | Deploy destrutivo/SQLite efêmero | `CONTROLADO LOCAL/CI; PRODUÇÃO BLOQUEADA` | `ARQ-01A` concluído: Vercel/bootstrap SQLite está isolado por `VERCEL=true` somente para demo sintética; Docker/Feature/E2E usam PostgreSQL 17 e passaram por Senior + QA/Security. Remoção depende do cutover. TLS, roles, backup/PITR e restore na Contabo não foram implementados | Engenharia / `ARQ-01`, `ARQ-03`, `ARQ-07` |
 | Arquivos/fotos públicos | `ABERTO — BLOCKER` | storage atual não garante autorização por download | Engenharia / `ARQ-02`, `SEG-05` |
 | Autorização e auditoria granulares | `ABERTO — BLOCKER` | matriz/policies/trilha ainda incompletas | Produto + Engenharia / `SEG-02`, `SEG-03` |
-| Redis/Horizon/Swarm/cofre/restore | `PLANEJADO — BLOCKER` | arquitetura aprovada, serviços e restore integral ainda sem evidência | Engenharia / `ARQ-03/04/07`, `OPS-01/02` |
-| Contexto único e casas internas | `DECIDIDO PARCIALMENTE` | organização/unidade únicas aprovadas; regra de histórico entre casas pendente em `DEC-01`; nada implementado | Produto + Engenharia / `DEC-01/05`, `ACO-01`, `SEG-02` |
-| Gmail/OAuth/Pub/Sub | `BLOQUEADO PARA DADOS REAIS` | tipo de conta/principal/escopo/rota ainda dependem de `DEC-08` e PoC sintética | Produto + Engenharia / `DEC-08/09`, `EML-01/02/03` |
-| PWA/Web Push | `BLOQUEADO PARA DADOS REAIS` | política, network-only, dispositivos e revogação pendentes | Produto + Engenharia / `DEC-10`, `PWA-01/02` |
-| LLM | `NÃO APROVADO` | `DEC-11`, RIPD, fornecedor e avaliação sintética pendentes | Produto + Jurídico + Engenharia / `DEC-11`, `LGPD-02`, `EML-04` |
+| Redis/Horizon/Swarm/cofre/restore | `PLANEJADO — BLOCKER` | arquitetura aprovada e auto backup pago decidido para contratação; serviços, escopo do produto e restore integral ainda sem evidência | Engenharia / `ARQ-03/04/07`, `OPS-01/02` |
+| Contexto único e casas internas | `FUNDAÇÃO PARCIAL IMPLEMENTADA` | organização/unidade e backfill implementados em `ARQ-01B/06A`, FKs nullable até `ARQ-01C`; evasão/internação decididas, casas e Policies pendentes | Produto + Engenharia / `DEC-01/05`, `ARQ-01C`, `ACO-01`, `SEG-02` |
+| Gmail/OAuth/Pub/Sub | `BLOQUEADO PARA DADOS REAIS` | conta Gmail de consumidor confirmada e semântica v0 de datas/revisão aprovada; OAuth web continua rota candidata dependente de ADR/PoC sintética, menor escopo, Limited Use, titularidade, revogação, retenção e blast radius | Produto + Engenharia / `DEC-08/09`, `EML-01/02/03/04/05` |
+| PWA/Web Push | `BLOQUEADO PARA DADOS REAIS` | opt-in contextual, push genérico sem PII e lembrete no dia civil anterior às 09:00 decididos; plataformas, quiet hours, fallback, subscriptions e revogação pendentes | Produto + Engenharia / `DEC-10`, `PWA-01/02` |
+| LLM | `FORA DA FASE ATUAL` | `DEC-11` concluída: nenhuma LLM; futuro só por reabertura formal e novos gates | Produto + Jurídico + Engenharia / `DEC-11`, `LGPD-02`, `EML-04` |
 
 Um teste criado não muda o estado do risco. O estado só avança para `CONTROLADO` após implementação, evidência positiva/negativa e revisão Senior + QA; risco aceito exige responsável, prazo e aprovação humana.
 

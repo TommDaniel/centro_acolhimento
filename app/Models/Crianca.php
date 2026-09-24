@@ -74,6 +74,11 @@ class Crianca extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function organizacao(): BelongsTo
+    {
+        return $this->belongsTo(Organizacao::class);
+    }
+
     /**
      * Bloco de identificação reutilizado no PIA e demais documentos.
      *

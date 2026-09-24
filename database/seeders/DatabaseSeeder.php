@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Actions\ProvisionInstitutionContext;
 use App\Models\Crianca;
 use App\Models\Evento;
 use App\Models\Pertence;
@@ -20,6 +21,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        app(ProvisionInstitutionContext::class)->handle();
+
         $setores = collect([
             'Coordenação' => 'Gestão da unidade e articulação com a rede de proteção.',
             'Serviço Social' => 'Acompanhamento sociofamiliar, PIA e demandas ao Judiciário.',

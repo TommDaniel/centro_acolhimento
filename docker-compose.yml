@@ -46,6 +46,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      e2e-assets:
+        condition: service_completed_successfully
     environment:
       APP_ENV: testing
       APP_DEBUG: "false"
@@ -63,6 +65,7 @@ services:
       SESSION_DRIVER: file
     volumes:
       - .:/app
+      - e2e_public_build:/app/public/build
     command: >-
       sh -c "php artisan e2e:reset-database
       && php artisan serve --no-reload --host=0.0.0.0 --port=8000"
@@ -75,6 +78,16 @@ services:
     networks:
       - default
       - database_internal
+
+  e2e-assets:
+    image: node:22-alpine
+    profiles: ["e2e"]
+    working_dir: /app
+    volumes:
+      - .:/app
+      - e2e_node_modules:/app/node_modules
+      - e2e_public_build:/app/public/build
+    command: sh -c "npm ci && npm run build"
 
   playwright-e2e:
     image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -89,7 +102,8 @@ services:
     volumes:
       - .:/app
       - e2e_node_modules:/app/node_modules
-    command: sh -c "npm ci && npm run build && npm run test:e2e"
+      - e2e_public_build:/app/public/build
+    command: npm run test:e2e
     networks:
       - default
 
@@ -109,6 +123,8 @@ volumes:
     name: centro_acolhimento_postgres_data
   e2e_node_modules:
     name: centro_acolhimento_e2e_node_modules
+  e2e_public_build:
+    name: centro_acolhimento_e2e_public_build
 
 networks:
   database_internal:

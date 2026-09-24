@@ -1,14 +1,14 @@
 # ADR 0003 — Infraestrutura futura em Contabo VPS, Swarm e Redis
 
-- Status: aceito como arquitetura-alvo; fundação PostgreSQL local/CI concluída por `ARQ-01A` em 31/08/2026, produção pendente
-- Data: 12/08/2026
+- Status: aceito como arquitetura-alvo; fundações PostgreSQL local/CI e contexto único concluídas por `ARQ-01A/01B/06A`, produção pendente
+- Data: 12/08/2026; atualizada em 16/09/2026
 - Tarefas: `ARQ-01`, `ARQ-02`, `ARQ-03`, `ARQ-04`, `ARQ-07`, `ARQ-08`, `OPS-02`
 - Referência: [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon)
 - Detalhamento: [arquitetura-alvo](../architecture/target-architecture.md)
 
 ## Contexto
 
-A POC atual usa SQLite e filesystem local/público, inadequados para dados restritos e sensíveis. O orçamento total inicial é de aproximadamente R$ 60 por mês, há apenas quatro usuários e uma aplicação, e a hospedagem futura aprovada é uma Contabo VPS.
+A POC mantém SQLite apenas na demonstração efêmera legada e filesystem local/público, inadequado para dados restritos e sensíveis. O orçamento total inicial é de aproximadamente R$ 60 por mês, há apenas quatro usuários e uma aplicação, e a hospedagem futura aprovada é uma Contabo VPS. O perfil 4 vCPU, 8 GB de RAM e 100 GB SSD permanece candidato de capacidade. Em 16/09/2026 foi aprovada a contratação do auto backup pago junto à futura VPS como camada adicional; o serviço ainda não está ativo nem comprova capacidade, continuidade, consistência, RPO/RTO ou restore e depende de `ARQ-07/OPS-02`.
 
 O objetivo da fase 1 é reduzir risco de perda e tornar execução, filas e deploy reproduzíveis dentro desse limite. Desempenho não motiva cache amplo. Esta decisão não afirma que a infraestrutura já existe nem autoriza dados reais.
 
@@ -24,6 +24,8 @@ Até o cutover Contabo, ele é usado somente pela demonstração efêmera da
 Vercel, mediante `VERCEL=true`; local, CI e E2E permanecem PostgreSQL. Essa
 exceção não autoriza dados reais e será removida ao desativar o deploy legado.
 
+`ARQ-01B/ARQ-06A`, concluídos e validados em 10/09/2026, implementam uma organização e uma unidade explícitas por implantação, FKs nullable, provisionamento/backfill reconciliável e contexto derivado no backend. `NOT NULL` permanece pendente em `ARQ-01C`; isso não implementa RBAC, auditoria nem infraestrutura produtiva.
+
 Esse corte não implementa a infraestrutura descrita abaixo para a Contabo:
 Swarm, TLS, roles mínimas separadas, limites de conexão, monitoramento,
 backup/WAL/PITR, cofre, restore e RPO/RTO continuam pendentes em `ARQ-01/07`.
@@ -32,7 +34,7 @@ backup/WAL/PITR, cofre, restore e RPO/RTO continuam pendentes em `ARQ-01/07`.
 
 Executar o monólito modular Laravel/Inertia/React em Docker Swarm inicialmente com uma única VPS e um único nó. Swarm será usado para declarar serviços, healthchecks, rolling update, secrets e reinício de processos. Um nó único continua sendo `single point of failure`: múltiplas réplicas no mesmo host não oferecem alta disponibilidade contra perda da VPS, rede, disco ou região.
 
-PostgreSQL e cada serviço Redis stateful ficam presos por placement constraint/label ao nó que possui seu volume dedicado. O binding é explícito; o Swarm não pode reagendar um serviço stateful para volume local vazio. Antes de adicionar nós, o plano deve escolher e testar migração/failover de dados, volumes externos/replicados ou serviço dedicado/gerenciado. Réplica de container e rescheduling sem dados não contam como HA.
+PostgreSQL e cada serviço Redis stateful ficam em containers separados e presos por placement constraint/label ao nó que possui seu volume dedicado. No single-node, essa separação é lógica: todos continuam no mesmo domínio de falha. O binding é explícito; o Swarm não pode reagendar um serviço stateful para volume local vazio. Antes de adicionar nós, o plano deve escolher e testar migração/failover de dados, volumes externos/replicados ou serviço dedicado/gerenciado. Réplica de container e rescheduling sem dados não contam como HA.
 
 ### Serviços da fase 1
 
@@ -55,7 +57,7 @@ A aplicação usa role própria sem `SUPERUSER`, `CREATEDB`, `CREATEROLE` ou DDL
 
 `max_connections` e pools de aplicação/Horizon serão limitados pela memória e capacidade medida da VPS. PgBouncer ou pooling externo só entra após evidência de saturação e teste de compatibilidade com transações, locks e session state. `statement_timeout`, `idle_in_transaction_session_timeout` e `lock_timeout` terão limites por workload. Operação inclui autovacuum/`ANALYZE`, acompanhamento de bloat, locks, disco e conexões, patching com janela/runbook de manutenção e `pg_stat_statements` de acesso restrito, sem parâmetros ou payloads sensíveis em logs/métricas.
 
-Backup base e arquivamento WAL/PITR serão criptografados e copiados obrigatoriamente para destino fora da VPS, com credenciais e retenção separadas. Um cofre/escrow criptografado e segregado fora da VPS mantém as versões de `APP_KEY` e das chaves/segredos de backup, OAuth, push e TOTP necessárias para descriptografar dados ainda vigentes. Acesso, rotação e descarte dessas versões são auditados; nenhum segredo entra no repositório. Restore/PITR integral, incluindo chaves necessárias, será testado periodicamente em ambiente isolado contra RPO/RTO aprovados. Snapshot da própria VPS ou volume no mesmo host não conta como única estratégia de backup.
+Backup base e arquivamento WAL/PITR serão criptografados e copiados obrigatoriamente para destino fora da VPS, com credenciais e retenção separadas. A contratação do auto backup pago da Contabo está aprovada como complemento, nunca como única cópia ou substituto desses backups. Antes do go-live, `ARQ-07/OPS-02` confirmam documentalmente escopo, frequência, retenção, região, criptografia, consistência entre volumes/banco, procedimento/tempo de restauração e plano de saída, além de executar restore real em ambiente isolado. Uma cópia local também é apenas complementar. Um cofre/escrow criptografado e segregado fora da VPS mantém as versões de `APP_KEY` e das chaves/segredos de backup, OAuth, push e TOTP necessárias para descriptografar dados ainda vigentes. Acesso, rotação e descarte dessas versões são auditados; nenhum segredo entra no repositório. Restore/PITR integral, incluindo chaves necessárias, será testado periodicamente contra RPO/RTO aprovados. A intenção de reter cópia local por cinco anos não aprova prazo geral: depende de `LGPD-03` e controlador/jurídico por categoria e, se autorizada, exige criptografia, acesso mínimo, inventário e descarte verificável.
 
 Mover PostgreSQL para nó dedicado ou serviço gerenciado quando RPO/RTO não forem atingidos, manutenção exigir indisponibilidade inaceitável, houver contenção sustentada de CPU/I/O/memória, crescimento além da capacidade validada ou a redução de risco/carga operacional justificar o custo.
 
@@ -81,11 +83,11 @@ Configurar e testar trim/retenção de jobs recentes, concluídos, silenciados e
 
 ### Arquivos privados
 
-Object storage S3-compatible privado, criptografado, versionado e com URLs curtas continua obrigação de `ARQ-02`, mas fornecedor, região, DPA e custo ainda estão pendentes. Centralizar execução na VPS não significa manter objetos apenas nela: uma cópia local ou uma única cópia no host não é durável. Banco, objeto, checksum e estado de quarentena precisam de reconciliação, backup isolado e teste conjunto de restauração.
+Object storage S3-compatible privado, **externo à VPS**, criptografado, versionado e com URLs curtas continua obrigação de `ARQ-02`, mas fornecedor, região, DPA e custo ainda estão pendentes. Centralizar execução na VPS não significa manter objetos apenas nela: uma cópia local ou uma única cópia no host não é durável. Banco, objeto, checksum e estado de quarentena precisam de reconciliação, backup isolado e teste conjunto de restauração.
 
 ## Escala e fase 2
 
-Antes de dados reais, o corte P0 de `ARQ-07` aprova capacidade mínima, orçamento, SLO/RPO/RTO, alertas e restore integral de banco, objetos e chaves/segredos. Crescimento e otimização permanecem no teste P2 de `ARQ-08`.
+Antes de dados reais, o corte P0 de `ARQ-07` aprova capacidade mínima, orçamento, SLO/RPO/RTO, alertas, os limites reais do auto backup contratado e restore integral de banco, objetos e chaves/segredos. Crescimento e otimização permanecem no teste P2 de `ARQ-08`.
 
 Expandir somente por medição ou nova fronteira operacional. Gatilhos incluem falha de SLO/RPO/RTO, saturação sustentada de CPU/memória/I/O, atraso de fila, crescimento de banco/objetos, necessidade de manutenção sem janela aceitável, segunda aplicação/organização ou risco incompatível com nó único.
 

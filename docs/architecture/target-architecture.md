@@ -1,8 +1,8 @@
 # Arquitetura-alvo do Centro de Acolhimento
 
-- Status: direção aprovada; infraestrutura não implementada
-- Data: 28/08/2026
-- Tarefas: `DEC-05`, `DEC-06`, `DEC-07`, `IAM-03`, `SEG-02`, `SEG-03`, `DOC-04`, `ARQ-01`, `ARQ-02`, `ARQ-03`, `ARQ-04`, `ARQ-07`, `ARQ-08`
+- Status: direção aprovada; fundações PostgreSQL local/CI e contexto único implementadas, infraestrutura produtiva pendente
+- Data: 16/09/2026
+- Tarefas: `DEC-01` a `DEC-11`, `IAM-03`, `SEG-02`, `SEG-03`, `DOC-04`, `ARQ-01`, `ARQ-02`, `ARQ-03`, `ARQ-04`, `ARQ-07`, `ARQ-08`, `OPS-02`, `LGPD-03`
 - Decisões: [ADR 0002 — identidade](../adr/0002-identidade-laravel-fortify-totp.md), [ADR 0003 — infraestrutura](../adr/0003-infraestrutura-contabo-swarm-redis.md) e [ADR 0004 — organização e unidade únicas](../adr/0004-organizacao-e-unidade-unicas.md)
 
 ## Visão geral
@@ -21,8 +21,8 @@ flowchart LR
     RedisQueues --> Horizon["Horizon / workers"]
     Horizon -->|"efeitos idempotentes"| PG
     Horizon --> Objects
-    Horizon -.->|"futuro; DEC-08"| Gmail["Gmail API / Pub/Sub"]
-    Horizon -.->|"futuro; DEC-11"| LLM["LLM; Groq apenas candidato de PoC"]
+    Horizon -.->|"futuro; ADR/PoC DEC-08"| Gmail["Gmail consumidor / OAuth / Pub/Sub"]
+    Horizon -.->|"somente após reabertura formal"| LLM["LLM desligada nesta fase"]
 
     PG --> Backup["Backup base + WAL/PITR<br/>criptografado fora da VPS"]
     Objects --> BackupObjects["Backup/replicação de objetos<br/>fora da VPS"]
@@ -35,7 +35,8 @@ As três caixas Redis são obrigatoriamente serviços/processos e volumes distin
 ## Estado atual
 
 - POC monolítica Laravel 13 + Inertia 2 + React 18.
-- SQLite copiado para armazenamento efêmero no deploy atual.
+- PostgreSQL 17 canônico em local/CI e contexto único explícito implementado por `ARQ-01A/01B/06A`; chaves de contexto ainda nullable até `ARQ-01C`.
+- SQLite sintético restrito à demonstração Vercel efêmera enquanto o deploy legado não for removido.
 - Fotos/documentos em filesystem local/público.
 - Autenticação local sem a decisão de Fortify/TOTP implementada.
 - Sem Redis, Horizon, Swarm, PostgreSQL de produção, storage privado ou backup/PITR fora da VPS comprovados.
@@ -43,23 +44,23 @@ As três caixas Redis são obrigatoriamente serviços/processos e volumes distin
 
 ## Contexto organizacional e unidade única
 
-Cada implantação atende uma única organização de acolhimento institucional e uma única unidade operacional/local/complexo físico; não há SaaS multi-organização nem suporte multiunidade nesta fase. Dentro desse complexo existem várias casas para moradia e cuidado cotidiano de crianças e adolescentes. Casa é uma localização interna da unidade única, não uma unidade operacional, organização ou tenant. Se alocação e transferência entre casas exigirão histórico estruturado é uma pendência de `DEC-01`, portanto a arquitetura ainda não fixa sua tabela ou cardinalidade.
+Cada implantação atende uma única organização de acolhimento institucional e uma única unidade operacional/local/complexo físico; não há SaaS multi-organização nem suporte multiunidade nesta fase. Dentro desse complexo existem várias casas para moradia e cuidado cotidiano de crianças e adolescentes. Casa é uma localização interna da unidade única, não uma unidade operacional, organização ou tenant. `DEC-01A` definiu `evadido` como pessoa em episódio aberto que fugiu/está desaparecida e `internado` como pessoa em episódio aberto temporariamente hospitalizada por saúde; nenhum encerra/substitui o episódio, e o retorno cria nova movimentação append-only. Se alocação e transferência entre casas exigirão histórico estruturado permanece pendente em `DEC-01`, portanto a arquitetura ainda não fixa sua tabela ou cardinalidade.
 
-O contexto operacional inclui equipe de cuidado cotidiano, equipe técnica e pessoal jurídico/administrativo. Todas as contas técnicas ativas compartilham o mesmo conjunto assistencial aprovado; essa decisão não se estende automaticamente aos demais papéis. A organização precisa elaborar e rastrear exatamente PIA, Relatório de visita técnica, Parecer do acolhido, Ficha de ingresso e Termo de Recebimento/Entrega de documentos e pertences pessoais; efeitos e prazos jurídicos permanecem sujeitos a revisão humana.
+O contexto operacional inclui equipe de cuidado cotidiano, equipe técnica e pessoal jurídico/administrativo. Na fase inicial, somente `equipe_tecnica` e `administradora` possuem contas; ambas compartilham o mesmo acesso funcional assistencial e a agenda, sem informação assistencial privada entre elas. Só a administradora gerencia contas/acessos e consulta a auditoria funcional minimizada em modo somente leitura. Técnicas veem autoria/data e histórico funcional autorizado na ficha/linha do tempo, mas não administram usuários, auditoria operacional, segredos ou infraestrutura. Nenhuma das duas edita/apaga histórico, auditoria ou controles de segurança. Essa política de `DEC-02` ainda exige implementação por Policies/Gates e testes negativos em `SEG-02/03`. A organização precisa elaborar e rastrear exatamente PIA, Relatório de visita técnica, Parecer do acolhido, Ficha de ingresso e Termo de Recebimento/Entrega de documentos e pertences pessoais; o PDF apenas identifica 1–4 profissionais selecionados e não implementa/declara assinatura eletrônica ou digital. Efeitos e prazos jurídicos permanecem sujeitos a revisão humana.
 
 Pessoa pertence à organização, enquanto cada episódio de acolhimento e cada usuário pertencem à unidade única. Organização e unidade permanecem entidades/chaves explícitas mínimas para contexto, auditoria, numeração e evolução segura, sem vínculo M:N usuário–unidade, seleção ou filtro de unidade.
 
-O backend resolve o contexto fixo da implantação e não aceita organização/unidade informada pelo cliente como autoridade. Policies distinguem equipe técnica ativa dos demais papéis e mantêm ações administrativas/auditoria separadas. A implementação seguirá migração aditiva e roll-forward: criar organização e unidade por configuração controlada, mapear registros e usuários, validar órfãos e aplicar constraints obrigatórias somente após backfill. Documentos numerados mantêm sequência única por tipo/unidade/ano quando o dicionário aprovado exigir.
+O backend resolve o contexto fixo da implantação e não aceita IDs de organização/unidade informados pelo cliente como autoridade. Policies deverão aplicar a política funcional aprovada e manter gestão de contas e auditoria/segurança separadas. O corte `ARQ-01B/ARQ-06A`, concluído em 10/09/2026, usa migrações aditivas para criar organização e unidade por configuração controlada, aplicar FKs, `UNIQUE`, `CHECK` e índices necessários ainda com as chaves nullable, mapear registros e usuários e validar órfãos. Somente `NOT NULL` aguarda o backfill e a reconciliação de `ARQ-01C`. Documentos numerados mantêm sequência única por tipo/unidade/ano quando o dicionário aprovado exigir.
 
-Uma futura segunda unidade ou organização exige reabrir a decisão e implementar isolamento, vínculos, autorização, migração e testes antes de ativá-la; a arquitetura atual não deve ser apresentada como preparada para multiunidade. O contrato completo está no [ADR 0004](../adr/0004-organizacao-e-unidade-unicas.md), e nada disso está implementado ainda.
+Uma futura segunda unidade ou organização exige reabrir a decisão e implementar isolamento, vínculos, autorização, migração e testes antes de ativá-la; a arquitetura atual não deve ser apresentada como preparada para multiunidade. O contrato completo está no [ADR 0004](../adr/0004-organizacao-e-unidade-unicas.md). A fundação física foi concluída e validada, mas não conclui `ARQ-01/06`, infraestrutura produtiva, RBAC ou auditoria.
 
 ## Fase 1 — base segura dentro do orçamento
 
-A hospedagem futura usa uma Contabo VPS e Docker Swarm single-node. Swarm declara e reinicia serviços, distribui secrets e permite rolling update; não protege contra perda da VPS, disco, rede ou região. PostgreSQL e Redis têm placement constraint/label vinculada ao nó e volume corretos; o Swarm não pode reagendá-los para volume local vazio.
+A hospedagem futura usa uma Contabo VPS e Docker Swarm single-node. O perfil 4 vCPU, 8 GB de RAM e 100 GB SSD permanece candidato e depende da prova de carga/capacidade, alertas, RPO/RTO e restore de `ARQ-07`. Contratar o auto backup pago da Contabo junto à VPS foi aprovado em 16/09/2026 como camada adicional, ainda não ativa nem testada; escopo, frequência, retenção, região, consistência, criptografia, restore e saída precisam ser confirmados. Swarm declara e reinicia serviços, distribui secrets e permite rolling update; não protege contra perda da VPS, disco, rede ou região. PostgreSQL e Redis têm placement constraint/label vinculada ao nó e volume corretos; o Swarm não pode reagendá-los para volume local vazio.
 
-O monólito continua modular. PostgreSQL autogerido inicia na mesma VPS por restrição do orçamento total aproximado de R$ 60/mês, em rede privada, TLS e volume persistente. A aplicação usa role não-superuser; migration e backup/restore têm roles separadas e mínimas. Conexões/timeouts, autovacuum/`ANALYZE`, `pg_stat_statements` restrito, patching e manutenção são definidos antes do go-live; PgBouncer só entra após medição.
+O monólito continua modular. PostgreSQL autogerido inicia em container separado na mesma VPS da aplicação por restrição do orçamento total aproximado de R$ 60/mês, em rede privada, TLS e volume persistente. Isso é isolamento lógico, não HA nem domínio de falha separado. A aplicação usa role não-superuser; migration e backup/restore têm roles separadas e mínimas. Conexões/timeouts, autovacuum/`ANALYZE`, `pg_stat_statements` restrito, patching e manutenção são definidos antes do go-live; PgBouncer só entra após medição.
 
-Backup base + WAL/PITR criptografado sai obrigatoriamente da VPS e passa por restore test. Um cofre/escrow criptografado e segregado mantém versões de `APP_KEY` e chaves/segredos necessários de backup, OAuth, push e TOTP; unlock key de eventual backup do manager fica separada do artefato. Object storage privado é obrigação ainda pendente; centralizar a execução não permite objeto apenas no disco local ou cópia única.
+Backup base + WAL/PITR criptografado sai obrigatoriamente da VPS e passa por restore test. Auto backup/snapshot do provedor e cópia local são complementares, nunca a única cópia. Um cofre/escrow criptografado e segregado mantém versões de `APP_KEY` e chaves/segredos necessários de backup, OAuth, push e TOTP; unlock key de eventual backup do manager fica separada do artefato. Object storage privado **externo à VPS** é obrigação ainda pendente; centralizar a execução não permite objeto apenas no disco local ou cópia única. A intenção de retenção local por cinco anos não está aprovada: depende de `LGPD-03` e controlador/jurídico por categoria e, se autorizada, exige criptografia, acesso mínimo, inventário e descarte verificável.
 
 Laravel Fortify e TOTP obrigatório para toda conta humana são a identidade-alvo. Conta nasce `pendente_mfa` e só acessa enrolamento/confirmar/logout até tornar-se `ativa`; esse é um estado durável da conta. Separadamente, uma conta `ativa` pós-senha fica em sessão transitória `password_only`, limitada a challenge/logout, sem recurso, QR, recovery, re-enrollment ou admin. TOTP válido rotaciona o session ID e cria `mfa_verified`.
 
@@ -73,7 +74,7 @@ Para conta ativa, QR de re-enrollment, geração/regeneração de recovery codes
 
 Adicionar nós em domínios de falha distintos, separar aplicação/workers, mover PostgreSQL/Redis para nó dedicado ou serviço gerenciado e ampliar redundância de objetos/backups somente quando uma condição mensurável de `ARQ-08` ocorrer: falha de SLO/RPO/RTO, saturação sustentada, atraso de fila, crescimento de dados/arquivos, manutenção sem janela aceitável, segunda aplicação/organização ou risco incompatível com single-node. Antes de adicionar nós, definir/provar binding, migração e failover de volumes stateful; rescheduling para disco vazio é proibido.
 
-OIDC/Keycloak também só volta à decisão diante de segunda aplicação/SSO, múltiplas organizações/diretório corporativo ou custo operacional menor comprovado. LLM continua pendente de `DEC-11`; Groq é apenas candidato de PoC sintética e não está autorizado a receber dados.
+OIDC/Keycloak também só volta à decisão diante de segunda aplicação/SSO, múltiplas organizações/diretório corporativo ou custo operacional menor comprovado. `DEC-11` encerrou a fase atual sem LLM. Uma possibilidade futura só será reaberta por decisão formal após RIPD, fornecedor/no-training/Limited Use, minimização, testes sintéticos e revisão humana; Groq é apenas candidato de PoC, não fornecedor.
 
 ## Responsabilidades dos serviços
 
@@ -106,7 +107,7 @@ Há somente quatro usuários. Desempenho não justifica cache amplo: primeiro me
 
 Uma transação grava o fato e a outbox no PostgreSQL. O publicador/worker envia ou processa o job com chave natural/idempotência. O efeito externo confirmado é registrado e retries convergem sem duplicação. Falha antes do commit não cria intenção; falha após commit é recuperada pela outbox. Failed jobs, atraso, tentativas e idade da outbox geram métricas sem conteúdo sensível.
 
-Filas previstas: PDFs/exports, miniaturas e antimalware; Gmail/Pub/Sub após `DEC-08`; notificações; e eventual extração após `DEC-11`. Jobs revalidam autorização e estado da conta/recurso antes de entregar dados ou notificar. Persistência/fsync, backup/restore e alertas do Redis de filas/sessões seguem RPO definido; restore de fila reconcilia com outbox.
+Filas previstas: PDFs/exports, miniaturas e antimalware; Gmail/Pub/Sub após ADR/PoC/gates de `DEC-08`; e notificações. `DEC-09` aprovou extração determinística somente de datas literais, sempre pendente de revisão humana; datas relativas ficam ambíguas e LLM não entra nesta fase. Aprovação agenda o lembrete padrão no dia civil anterior às 09:00 em `America/Sao_Paulo`; correção posterior cria revisão append-only e substitui jobs de modo idempotente, nunca por overwrite silencioso. Jobs revalidam autorização e estado da conta/recurso antes de entregar dados ou notificar. Persistência/fsync, backup/restore e alertas do Redis de filas/sessões seguem RPO definido; restore de fila reconcilia com outbox.
 
 O [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon) não suporta Redis Cluster. A fila permanece em Redis não-cluster dedicado nesta fase; antes de adotar Cluster, uma ADR precisa optar por manter esse serviço compatível ou substituir Horizon/driver por alternativa testada.
 
@@ -124,7 +125,7 @@ O [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon) não suporta Red
 | Horizon exposto ou job sensível | Metadado/payload pode vazar | Gate/Policy + rede admin, sessão MFA, IDs opacos, trim/retenção, logs/failed jobs redigidos e teste negativo |
 | Object storage indisponível | Upload/download falha ou fica pendente | Estado de quarentena/pendência; retry idempotente; nunca alegar sucesso parcial |
 | Backup fora da VPS falha | RPO/RTO ameaçados | Alerta bloqueante, corrigir e repetir backup/restore antes de go-live |
-| Gmail/LLM futuro falha | Integração suspensa | Core permanece funcional; retry/circuit breaker e revisão humana; nenhum efeito automático |
+| Gmail futuro falha | Integração suspensa | Core permanece funcional; retry/circuit breaker e revisão humana; nenhum efeito automático |
 
 ## Segurança e LGPD
 
@@ -141,7 +142,11 @@ O [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon) não suporta Red
 - Logs/traces minimizados, sem senha, token, TOTP, CPF, CNS, narrativa clínica, arquivo ou URL assinada.
 - Jobs/failed jobs usam IDs opacos e metadados mínimos; Horizon/Redis não armazenam corpo de e-mail, documento, narrativa assistencial, PII ou segredo, e `/horizon` exige autorização backend/rede administrativa.
 - Arquivos privados usam nome aleatório sem PII, quarentena, validação, antimalware e URL curta auditada.
-- Auditoria append-only registra ator, alvo, ação, resultado e horário UTC sem copiar o conteúdo sensível.
+- Auditoria append-only registra ator, alvo, ação, resultado, horário UTC, campos alterados, justificativa/revision ID e correlation ID quando aplicáveis, sem copiar o conteúdo sensível. A administradora consulta a visão funcional minimizada em modo somente leitura; técnicas veem autoria/data e histórico funcional autorizado na ficha/linha do tempo; ninguém altera/apaga a trilha.
+- A política atual de documentos usa somente identificação de 1–4 profissionais ativos com snapshot ao finalizar; documento final é imutável e correção cria nova versão. Não há assinatura eletrônica/digital nem alegação de validade jurídica nesta fase.
+- Gmail futuro usa OAuth web consentido para conta de consumidor, acesso offline/refresh token revogável e menor escopo; senha, service account e domain-wide delegation são excluídos. Datas literais são apenas propostas e nunca criam agenda/lembrete antes da aprovação humana; data relativa não é calculada no MVP.
+- Web Push pede opt-in em contexto, nunca no primeiro carregamento; payload é genérico sem PII e detalhes exigem autenticação. O lembrete funcional padrão é o dia civil anterior às 09:00 em `America/Sao_Paulo`; navegadores, quiet hours, fallback e revogação permanecem pendentes.
+- LLM permanece desligada nesta fase e não recebe dados Gmail/assistenciais.
 - Retenção, descarte, legal hold, fornecedor/região/DPA e RPO/RTO finais dependem das aprovações `LGPD-01/02/03`, `SEG-07` e `OPS-02`.
 
 ## Fluxo de deploy
@@ -159,7 +164,11 @@ O [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon) não suporta Red
 | Item | Status | Referência/condição |
 |---|---|---|
 | Monólito modular Laravel/Inertia/React | Aprovado; já é direção do código | `ARQ-05` |
-| Uma organização cliente e uma unidade operacional por implantação | Aprovado; não implementado | `DEC-05`, ADR 0004; papéis/setores em `SEG-02` |
+| Uma organização cliente e uma unidade operacional por implantação | Fundação `ARQ-01B/ARQ-06A` concluída em 10/09/2026; `NOT NULL` em `ARQ-01C` pendente | `DEC-05`, ADR 0004; papéis/setores em `SEG-02` |
+| Evasão/internação no episódio aberto | Decidido; implementação pendente | `DEC-01A`, `ACO-01/02/03`; alocação/transferência entre casas permanece em `DEC-01` |
+| Agenda e acesso assistencial inicial | Política decidida; Policies/Gates/auditoria pendentes | `DEC-02`, `AGD-01/02`, `SEG-02/03`; somente administradora gere contas/acessos |
+| Taxonomia anual v0 | Decidida; implementação pendente | `DEC-03`, `ATE-01/02`, `BI-01/02/03`; ocorrências e pessoas únicas sem dupla contagem |
+| Documentos sem assinatura eletrônica/digital | Decidido; implementação pendente | `DEC-04`, `DOC-03/04/06`; rodapé identifica 1–4 profissionais e snapshot é imutável |
 | Fortify + TOTP para toda conta humana; passkeys desativadas | Aprovado; não implementado | `DEC-07`, `IAM-02`, ADR 0002 |
 | Contabo VPS + Swarm single-node | Aprovado como alvo; não implantado | `ARQ-03`, ADR 0003 |
 | PostgreSQL autogerido na VPS, roles separadas | Aprovado para fase 1; não implantado | `ARQ-01`; saída por SLO/RPO/RTO/capacidade |
@@ -167,15 +176,18 @@ O [Laravel Horizon 13.x](https://laravel.com/docs/13.x/horizon) não suporta Red
 | Laravel Queues + Horizon sem Redis Cluster | Aprovado; não implantado | `ARQ-04`; saída obrigatória antes de Cluster |
 | Object storage privado | Obrigatório e pendente de fornecedor | `ARQ-02`, `SEG-07` |
 | Backup PG WAL/PITR, objetos e cofre de chaves fora da VPS | Obrigatório; não implementado/testado | `ARQ-01`, `ARQ-07`, `OPS-02` |
+| Auto backup pago da Contabo | Contratação aprovada; serviço não ativo/validado | `ARQ-07`, `OPS-02`; camada complementar, nunca única cópia ou prova de restore |
 | Capacidade/SLO/RPO/RTO/restore mínimo | Gate P0; não aprovado | `ARQ-07`; bloqueia dados reais |
 | Crescimento e otimização | Pendente P2 | `ARQ-08` |
-| Gmail/Pub/Sub | Pendente | `DEC-08`, `EML-01/02/03` |
-| LLM / Groq | Pendente; Groq apenas candidato de PoC | `DEC-11`; proibido para dados reais |
+| Gmail/Pub/Sub | Conta consumer e rota OAuth candidatas definidas; ADR/PoC/gates pendentes | `DEC-08/08A`, `EML-01/02/03`; sem senha, service account ou domain-wide delegation |
+| Propostas de prazo Gmail | Semântica v0 decidida; implementação pendente | `DEC-09`, `EML-04/05`; literal/revisão humana/versionamento/lembrete D-1 09:00 |
+| PWA/Web Push | Opt-in contextual e payload genérico decididos; plataformas/lifecycle pendentes | `DEC-10/10A`, `PWA-01/02` |
+| LLM / Groq | Não usar nesta fase | `DEC-11`; futuro somente por reabertura formal, Groq apenas candidato de PoC |
 | Alta disponibilidade | Não entregue na fase 1 | Exige múltiplos domínios de falha e testes |
 
 ## Premissas de capacidade
 
 - Quatro usuários nomeados inicialmente, uma única aplicação e nenhuma demanda de SSO por dois anos.
-- Orçamento total aproximado de R$ 60/mês; `ARQ-07` precisa aprovar antes de dados reais o dimensionamento mínimo da VPS, conexões/disco, SLO, RPO/RTO, alertas e restore integral.
+- Orçamento total aproximado de R$ 60/mês; o perfil Contabo 4 vCPU/8 GB/100 GB SSD é candidato e a contratação do auto backup pago está aprovada. `ARQ-07` ainda precisa aprovar antes de dados reais o dimensionamento mínimo da VPS, conexões/disco, escopo do serviço contratado, SLO, RPO/RTO, alertas e restore integral.
 - Concorrência observada, crescimento, massa de carga e otimizações são medidos depois em `ARQ-08`, sem enfraquecer o gate P0 anterior.
 - A primeira otimização é consulta paginada, índices PostgreSQL, payload mínimo e trabalho em fila. Cache amplo ou réplica adicional no mesmo host não substituem capacidade comprovada nem HA.

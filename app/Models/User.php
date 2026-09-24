@@ -43,4 +43,9 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Setor::class);
     }
+
+    public function unidade(): BelongsTo
+    {
+        return $this->belongsTo(Unidade::class);
+    }
 }

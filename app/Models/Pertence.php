@@ -33,6 +33,11 @@ class Pertence extends Model
         return $this->belongsTo(Setor::class);
     }
 
+    public function unidade(): BelongsTo
+    {
+        return $this->belongsTo(Unidade::class);
+    }
+
     public function criador(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
