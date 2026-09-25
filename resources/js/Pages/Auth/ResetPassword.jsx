@@ -5,10 +5,8 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, useForm } from '@inertiajs/react';
 
-export default function ResetPassword({ token, email }) {
+export default function ResetPassword({ email }) {
     const { data, setData, post, processing, errors, reset } = useForm({
-        token: token,
-        email: email,
         password: '',
         password_confirmation: '',
     });
@@ -32,11 +30,10 @@ export default function ResetPassword({ token, email }) {
                     <TextInput
                         id="email"
                         type="email"
-                        name="email"
-                        value={data.email}
+                        value={email}
                         className="mt-1 block w-full"
                         autoComplete="username"
-                        onChange={(e) => setData('email', e.target.value)}
+                        readOnly
                     />
 
                     <InputError message={errors.email} className="mt-2" />

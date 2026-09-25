@@ -20,7 +20,7 @@ class PasswordUpdateTest extends TestCase
         $oldRememberToken = $user->getRememberToken();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->from('/profile')
             ->put('/password', [
                 'current_password' => 'password',
@@ -49,7 +49,7 @@ class PasswordUpdateTest extends TestCase
         $user = User::factory()->create();
         $oldPasswordHash = $user->getAuthPassword();
 
-        $this->actingAs($user)
+        $this->actingAsWithVerifiedMfa($user)
             ->withSession(['password_hash_web' => $oldPasswordHash])
             ->from('/profile')
             ->put('/password', [
@@ -74,7 +74,7 @@ class PasswordUpdateTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->from('/profile')
             ->put('/password', [
                 'current_password' => 'wrong-password',

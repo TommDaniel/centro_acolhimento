@@ -3,15 +3,18 @@
 namespace App\Http\Middleware;
 
 use App\Services\AuditRecorder;
+use App\Services\TerminateAuthenticatedSession;
 use App\Support\AuditOperation;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureUserHasApprovedAccess
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private TerminateAuthenticatedSession $terminateSession,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -26,9 +29,7 @@ class EnsureUserHasApprovedAccess
                     $user,
                 );
                 $request->attributes->set('_access_denial_audited', true);
-                Auth::guard('web')->logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
+                $this->terminateSession->handle($request);
             }
 
             abort(403, 'Esta conta não possui acesso ativo ao sistema.');

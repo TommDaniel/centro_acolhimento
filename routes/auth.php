@@ -4,6 +4,8 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\MfaChallengeController;
+use App\Http\Controllers\Auth\MfaEnrollmentController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -20,16 +22,39 @@ Route::middleware('guest')->group(function () {
         ->name('password.request');
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:password-reset')
         ->name('password.email');
 
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+    Route::get('reset-password', [NewPasswordController::class, 'create'])
+        ->middleware('sensitive.no-store')
         ->name('password.reset');
 
+    Route::post('reset-password/capture', [NewPasswordController::class, 'capture'])
+        ->middleware(['sensitive.no-store', 'throttle:password-reset-capture'])
+        ->name('password.reset.capture');
+
     Route::post('reset-password', [NewPasswordController::class, 'store'])
+        ->middleware(['sensitive.no-store', 'throttle:password-reset-confirm'])
         ->name('password.store');
 });
 
-Route::middleware(['auth', 'auth.session', 'approved'])->group(function () {
+Route::middleware(['auth', 'auth.session'])->group(function () {
+    Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
+        ->name('logout');
+});
+
+Route::middleware(['auth', 'auth.session', 'mfa.restricted', 'sensitive.no-store'])->group(function () {
+    Route::get('mfa/enroll', [MfaEnrollmentController::class, 'show'])->name('mfa.enrollment');
+    Route::post('mfa/enroll/confirm', [MfaEnrollmentController::class, 'confirm'])
+        ->middleware('mfa.throttle')
+        ->name('mfa.enrollment.confirm');
+    Route::get('mfa/challenge', [MfaChallengeController::class, 'show'])->name('mfa.challenge');
+    Route::post('mfa/challenge', [MfaChallengeController::class, 'verify'])
+        ->middleware('mfa.throttle')
+        ->name('mfa.challenge.verify');
+});
+
+Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
@@ -48,6 +73,4 @@ Route::middleware(['auth', 'auth.session', 'approved'])->group(function () {
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
 
-    Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
-        ->name('logout');
 });

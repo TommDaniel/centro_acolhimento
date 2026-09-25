@@ -33,6 +33,8 @@ A sessão intermediária tem timeout de 5 minutos e rate limit próprios. Na con
 
 O cookie autenticado é apenas de sessão do navegador, sem `Expires`/`Max-Age` persistente. `mfa_verified` expira após 15 minutos de inatividade e, independentemente de atividade, após duração absoluta de 8 horas. Timeout, falha ou limite excedido invalida o estado intermediário sem criar credencial persistente nem reaproveitar seu ID.
 
+Respostas Inertia mantêm o estado do histórico criptografado. Todo encerramento ou revogação recria uma sessão anônima e elimina as chaves desse histórico; páginas autenticadas candidatas ao bfcache desmontam o conteúdo antes do snapshot e recarregam ao serem restauradas, revalidando sessão e autorização antes de voltar a apresentar qualquer dado. Isso inclui logout, timeout, inativação e divergência do hash de senha após troca remota em outro dispositivo.
+
 ### MFA e recuperação
 
 - MFA é obrigatório para toda conta humana atual ou futura, incluindo os quatro usuários iniciais, por TOTP compatível com RFC 6238 e aplicativo autenticador compatível, como FreeOTP.
@@ -47,15 +49,18 @@ O cookie autenticado é apenas de sessão do navegador, sem `Expires`/`Max-Age` 
 - Cada conjunto e código será um registro próprio; cada código será hasheado individualmente e nunca poderá ser listado em claro depois da entrega inicial. Uma constraint parcial/estratégia equivalente garante no máximo um conjunto ativo por usuário.
 - Consumo ocorre em transação: localizar/verificar o código do conjunto ativo, bloquear o registro aplicável e atualizar condicionalmente apenas se não usado e não revogado. Concorrência com o mesmo código produz exatamente um sucesso. Rotação cria novo conjunto e invalida atomicamente todo o anterior; replay, conjunto revogado e falha parcial falham fechado.
 - E-mail OTP não é MFA primário porque compartilha o canal com reset de senha. Se usado em recuperação, será apenas parte de fluxo controlado com verificação reforçada, TTL curto, token de uso único, rate limit, resposta sem enumeração de contas, auditoria e revogação de sessões e credenciais de recuperação anteriores.
+- Links de reset gerados pela aplicação não carregam bearer no path/query: token e e-mail ficam no fragmento local, removido do histórico antes do bootstrap Inertia mesmo quando um redirect autenticado herda o fragmento, e seguem por POST same-origin com CSRF para sessão criptografada e temporária. Fragmentos parciais sensíveis são descartados e âncoras comuns permanecem intactas. A rota GET legada com token no caminho permanece ausente; a borda ainda precisa sanitizar URLs arbitrárias conforme `OPS-01`.
 - Reset de senha, sozinho, não desativa nem substitui MFA.
 - O endpoint padrão de auto-desativação do segundo fator será bloqueado. Remoção ocorre somente por recuperação/re-enrollment autorizado e auditado, revoga todas as sessões/códigos anteriores e retorna a conta a `pendente_mfa` até nova confirmação.
-- Recuperação assistida por administrador exige operador individual autorizado, motivo, dupla verificação institucional, revogação das sessões/códigos anteriores e novo vínculo TOTP. Nenhum administrador conhece ou define o segundo fator do usuário.
+- Recuperação assistida exige uma administradora individual autorizada e uma segunda pessoa previamente designada, com as duas aprovações atribuíveis registradas e motivo. A segunda pessoa apenas atesta essa recuperação e não recebe acesso administrativo amplo. Sem designação prévia ou sem ambas as aprovações, o fluxo falha fechado. A conclusão revoga sessões/códigos anteriores e exige novo vínculo TOTP; nenhuma das aprovadoras conhece ou define o segundo fator do usuário.
 
 ### Lifecycle, contingência e controles
 
 Convite, ativação, alteração de função/vínculo, inativação, recuperação e contingência serão autorizados no backend e auditados de forma append-only. A auditoria registra ator, ação, conta-alvo, resultado, horário UTC e correlation ID, sem senha, segredo, QR, token ou código.
 
 Login, desafio TOTP, enrolamento, confirmação, recuperação, reset e operações administrativas terão rate limit e respostas que evitem enumeração. Sessões usarão cookies `Secure`, `HttpOnly` e `SameSite` apropriado, sem recaller, com rotação após MFA e revogação nos eventos definidos. Middleware/Policies permitem enrolamento/confirmar/logout apenas à conta `pendente_mfa`; para conta `ativa` em `password_only`, permitem somente challenge/logout. Eventos suspeitos geram alerta sem copiar payload sensível.
+
+Para impedir ataque sustentado entre janelas curtas, challenge e confirmação mantêm strikes consecutivos duráveis por conta no PostgreSQL, sob o mesmo lock/transação da validação TOTP. Falhas 5–9 aplicam cooldown de 5 minutos, 10–14 aplicam 15 minutos e 15 ou mais aplicam o teto de 60 minutos por tentativa, sem bloqueio permanente. Cache, logout, novo login, troca de IP, reset de senha e expiração do cooldown não zeram strikes; somente um segundo fator válido reinicia o contador. Rate limits curtos por conta, IP e sessão permanecem como camadas complementares. Cada início de cooldown é auditado e emite `warning` técnico estruturado sem PII, segredo ou código; entrega proativa e teste do canal de alerta dependem de `OPS-01` e não são presumidos por este ADR.
 
 Logout global, inativação, reset de senha, recuperação, cutover de re-enrollment e perda declarada de dispositivo incrementam/revogam a geração de acesso e encerram sessões e tokens derivados em todos os dispositivos. Logout local encerra a sessão corrente; a ação explícita de logout global cobre as demais. Restauração e retries não podem reativar geração anterior.
 

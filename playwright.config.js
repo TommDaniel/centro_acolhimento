@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:8000';
+
 export default defineConfig({
     testDir: './tests/E2E',
     fullyParallel: true,
@@ -12,7 +14,7 @@ export default defineConfig({
         : [['list'], ['html', { open: 'never' }]],
     outputDir: 'test-results',
     use: {
-        baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:8000',
+        baseURL,
         trace: 'retain-on-failure',
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',

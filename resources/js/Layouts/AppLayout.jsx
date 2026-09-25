@@ -162,7 +162,7 @@ export default function AppLayout({ titulo, children }) {
                 }}
             >
                 <Toolbar sx={{ gap: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', flex: { xs: '0 0 auto', sm: 1 }, minWidth: 0 }}>
                         <IconButton
                             edge="start"
                             onClick={() => setMenuAberto(true)}
@@ -196,7 +196,7 @@ export default function AppLayout({ titulo, children }) {
                     <Box
                         component="form"
                         onSubmit={enviarBusca}
-                        sx={{ width: { xs: 200, sm: 380, md: 480 }, flexShrink: 1 }}
+                        sx={{ width: { xs: 120, sm: 380, md: 480 }, flex: { xs: '1 1 auto', sm: '0 1 auto' }, minWidth: 0 }}
                     >
                         <TextField
                             size="small"
@@ -215,9 +215,10 @@ export default function AppLayout({ titulo, children }) {
                         />
                     </Box>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: { xs: '0 0 auto', sm: 1 }, minWidth: 0 }}>
                         <Box
                             component="button"
+                            aria-label={`Abrir menu de ${usuario?.name ?? 'usuário'}`}
                             onClick={(e) => setAnchorUsuario(e.currentTarget)}
                             sx={{
                                 display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',

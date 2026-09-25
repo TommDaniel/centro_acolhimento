@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
-Route::middleware(['auth', 'auth.session', 'approved'])->group(function () {
+Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/busca', [SearchController::class, 'index'])->name('busca');
 

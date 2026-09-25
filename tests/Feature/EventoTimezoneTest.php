@@ -18,7 +18,7 @@ class EventoTimezoneTest extends TestCase
     {
         $user = $this->seededAdmin();
 
-        $this->actingAs($user)->post(route('agenda.store'), [
+        $this->actingAsWithVerifiedMfa($user)->post(route('agenda.store'), [
             'titulo' => 'Consulta sintética com fuso',
             'tipo' => 'atendimento',
             'inicio' => '2026-09-01T12:30:00',
@@ -31,7 +31,7 @@ class EventoTimezoneTest extends TestCase
         $this->assertSame('2026-09-01 15:30:00', $event->inicio->utc()->format('Y-m-d H:i:s'));
         $this->assertSame('2026-09-01 16:15:00', $event->fim->utc()->format('Y-m-d H:i:s'));
 
-        $this->actingAs($user)->get(route('agenda.index'))
+        $this->actingAsWithVerifiedMfa($user)->get(route('agenda.index'))
             ->assertInertia(fn (Assert $page): Assert => $page
                 ->component('Agenda/Index')
                 ->where('eventos', fn ($events): bool => collect($events)->contains(
@@ -53,7 +53,7 @@ class EventoTimezoneTest extends TestCase
             'created_by' => $user->id,
         ]);
 
-        $this->actingAs($user)->put(route('agenda.update', $event), [
+        $this->actingAsWithVerifiedMfa($user)->put(route('agenda.update', $event), [
             'titulo' => 'Evento sintético editado',
             'tipo' => 'tarefa',
             'inicio' => '2026-09-02T08:45:00',
@@ -72,7 +72,7 @@ class EventoTimezoneTest extends TestCase
     {
         $user = $this->seededAdmin();
 
-        $this->actingAs($user)->post(route('agenda.store'), [
+        $this->actingAsWithVerifiedMfa($user)->post(route('agenda.store'), [
             'titulo' => 'Audiência sintética de dia inteiro',
             'tipo' => 'audiencia',
             'inicio' => '2026-09-03',
@@ -112,7 +112,7 @@ class EventoTimezoneTest extends TestCase
                 'created_by' => $user->id,
             ]);
 
-            $this->actingAs($user)->get(route('dashboard'))
+            $this->actingAsWithVerifiedMfa($user)->get(route('dashboard'))
                 ->assertInertia(fn (Assert $page): Assert => $page
                     ->component('Dashboard')
                     ->where('proximosEventos', function ($events): bool {

@@ -11,11 +11,13 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'setor_id', 'role', 'status', 'cargo', 'telefone'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'access_generation'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -26,6 +28,7 @@ class User extends Authenticatable
     protected $attributes = [
         'role' => UserRole::EquipeTecnica->value,
         'status' => UserStatus::Ativa->value,
+        'access_generation' => 1,
     ];
 
     /**
@@ -40,6 +43,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
             'status' => UserStatus::class,
+            'access_generation' => 'integer',
         ];
     }
 
@@ -68,5 +72,20 @@ class User extends Authenticatable
     public function unidade(): BelongsTo
     {
         return $this->belongsTo(Unidade::class);
+    }
+
+    public function mfaEnrollments(): HasMany
+    {
+        return $this->hasMany(MfaEnrollment::class);
+    }
+
+    public function mfaAttemptState(): HasOne
+    {
+        return $this->hasOne(MfaAttemptState::class);
+    }
+
+    public function hasActiveMfa(): bool
+    {
+        return $this->mfaEnrollments()->where('state', 'active')->exists();
     }
 }

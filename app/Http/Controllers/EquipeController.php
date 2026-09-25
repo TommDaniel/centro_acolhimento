@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\Setor;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -24,8 +25,14 @@ class EquipeController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $grupos = User::with('setor')->orderBy('name')->get()
-            ->groupBy(fn ($user) => $user->setor?->nome ?? 'Sem setor');
+        $grupos = User::with('setor')
+            ->withExists([
+                'mfaEnrollments as has_active_mfa' => fn (Builder $query): Builder => $query->where('state', 'active'),
+            ])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $user): array => $this->accountView($user))
+            ->groupBy(fn (array $user): string => $user['setor']?->nome ?? 'Sem setor');
 
         return Inertia::render('Equipe/Index', ['grupos' => $grupos]);
     }
@@ -56,8 +63,14 @@ class EquipeController extends Controller
         $this->authorize('update', $equipe);
 
         $setores = Setor::orderBy('nome')->get(['id', 'nome']);
+        $equipe->loadExists([
+            'mfaEnrollments as has_active_mfa' => fn (Builder $query): Builder => $query->where('state', 'active'),
+        ]);
 
-        return Inertia::render('Equipe/Form', ['usuario' => $equipe, 'setores' => $setores]);
+        return Inertia::render('Equipe/Form', [
+            'usuario' => $this->accountView($equipe),
+            'setores' => $setores,
+        ]);
     }
 
     public function update(Request $request, User $equipe)
@@ -99,5 +112,32 @@ class EquipeController extends Controller
             'cargo' => ['nullable', 'string', 'max:255'],
             'telefone' => ['nullable', 'string', 'max:50'],
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function accountView(User $user): array
+    {
+        $user->loadMissing('setor');
+        $hasActiveMfa = (bool) ($user->has_active_mfa ?? $user->hasActiveMfa());
+        $effectiveStatus = $user->status === UserStatus::Ativa && ! $hasActiveMfa
+            ? UserStatus::PendenteMfa
+            : $user->status;
+
+        return [
+            'id' => $user->getKey(),
+            'name' => $user->name,
+            'email' => $user->email,
+            'setor_id' => $user->setor_id,
+            'setor' => $user->setor,
+            'role' => $user->role->value,
+            'status' => $user->status->value,
+            'effective_status' => $effectiveStatus->value,
+            'has_active_mfa' => $hasActiveMfa,
+            'cargo' => $user->cargo,
+            'telefone' => $user->telefone,
+            'is_admin' => $user->isAdministrator(),
+        ];
     }
 }

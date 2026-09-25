@@ -4,8 +4,10 @@ namespace Database\Seeders;
 
 use App\Actions\ProvisionInstitutionContext;
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\Crianca;
 use App\Models\Evento;
+use App\Models\MfaEnrollment;
 use App\Models\Pertence;
 use App\Models\Pia;
 use App\Models\Report;
@@ -13,6 +15,7 @@ use App\Models\Setor;
 use App\Models\User;
 use App\Models\VisitaTecnica;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
@@ -73,6 +76,111 @@ class DatabaseSeeder extends Seeder
             'telefone' => '(47) 99999-0004',
             'setor_id' => $setores['Pedagogia']->id,
         ]);
+
+        foreach ([$admin, $assistente, $psicologa, $pedagoga] as $user) {
+            MfaEnrollment::create([
+                'user_id' => $user->id,
+                'version' => 1,
+                'state' => 'active',
+                'secret' => 'JBSWY3DPEHPK3PXP',
+                'confirmed_at' => now('UTC'),
+            ]);
+        }
+
+        foreach ([
+            'desktop' => [
+                'admin' => 'JBSWY3DPEHPK3PXP',
+                'technical' => 'KRSXG5DSNFXGOIDB',
+                'general' => 'MFRGGZDFMZTWQ2LK',
+                'protected-logout' => 'MZXW6YTBOJQW443E',
+                'protected-timeout' => 'ON2XEZJOORUGS4ZJ',
+                'protected-inactive' => 'GEZDGNBVGY3TQOJQ',
+                'admin-security' => 'KRSXG5DSNFXGOIDB',
+                'admin-ui' => 'MFRGGZDFMZTWQ2LK',
+            ],
+            'mobile' => [
+                'admin' => 'ON2XEZJOORUGS4ZJ',
+                'technical' => 'GEZDGNBVGY3TQOJQ',
+                'general' => 'MZXW6YTBOJQW443E',
+                'protected-logout' => 'JBSWY3DPEHPK3PXP',
+                'protected-timeout' => 'KRSXG5DSNFXGOIDB',
+                'protected-inactive' => 'MFRGGZDFMZTWQ2LK',
+                'admin-security' => 'MZXW6YTBOJQW443E',
+                'admin-ui' => 'GEZDGNBVGY3TQOJQ',
+            ],
+        ] as $e2eProject => $e2eSecrets) {
+            foreach ([
+                ['kind' => 'admin', 'name' => "Ana E2E {$e2eProject} (Fictício)", 'role' => UserRole::Administradora, 'setor' => 'Coordenação'],
+                ['kind' => 'technical', 'name' => "Bruno E2E {$e2eProject} (Fictício)", 'role' => UserRole::EquipeTecnica, 'setor' => 'Serviço Social'],
+                ['kind' => 'general', 'name' => "Carla E2E {$e2eProject} (Fictícia)", 'role' => UserRole::EquipeTecnica, 'setor' => 'Psicologia'],
+                ['kind' => 'protected-logout', 'name' => "Técnica histórico logout {$e2eProject} (Fictícia)", 'role' => UserRole::EquipeTecnica, 'setor' => 'Serviço Social'],
+                ['kind' => 'protected-timeout', 'name' => "Técnica histórico timeout {$e2eProject} (Fictícia)", 'role' => UserRole::EquipeTecnica, 'setor' => 'Serviço Social'],
+                ['kind' => 'protected-inactive', 'name' => "Técnica histórico inativação {$e2eProject} (Fictícia)", 'role' => UserRole::EquipeTecnica, 'setor' => 'Serviço Social'],
+                ['kind' => 'admin-security', 'name' => "Administradora segurança {$e2eProject} (Fictícia)", 'role' => UserRole::Administradora, 'setor' => 'Coordenação'],
+                ['kind' => 'admin-ui', 'name' => "Administradora contas {$e2eProject} (Fictícia)", 'role' => UserRole::Administradora, 'setor' => 'Coordenação'],
+            ] as $e2eAccount) {
+                $e2eUser = User::create([
+                    'name' => $e2eAccount['name'],
+                    'email' => "{$e2eAccount['kind']}.{$e2eProject}@poc.local",
+                    'password' => $senha,
+                    'role' => $e2eAccount['role'],
+                    'cargo' => 'Conta sintética de teste E2E',
+                    'setor_id' => $setores[$e2eAccount['setor']]->id,
+                ]);
+
+                MfaEnrollment::create([
+                    'user_id' => $e2eUser->id,
+                    'version' => 1,
+                    'state' => 'active',
+                    'secret' => $e2eSecrets[$e2eAccount['kind']],
+                    'confirmed_at' => now('UTC'),
+                ]);
+            }
+
+            foreach ([
+                'enrollment' => 'confirmação',
+                'enrollment-logout' => 'logout',
+                'enrollment-timeout' => 'expiração',
+                'enrollment-rate-limit' => 'limite de tentativas',
+                'enrollment-remote-reset' => 'revogação remota',
+                'pending-ui' => 'situação pendente na equipe',
+            ] as $account => $scenario) {
+                User::create([
+                    'name' => "Enrolamento E2E {$scenario} {$e2eProject} (Fictício)",
+                    'email' => "{$account}.{$e2eProject}@poc.local",
+                    'password' => $senha,
+                    'role' => UserRole::EquipeTecnica,
+                    'status' => UserStatus::PendenteMfa,
+                    'cargo' => 'Conta sintética de teste de enrolamento',
+                    'setor_id' => $setores['Serviço Social']->id,
+                ]);
+            }
+
+            User::create([
+                'name' => "Conta legada aguardando MFA {$e2eProject} (Fictícia)",
+                'email' => "legacy-active-ui.{$e2eProject}@poc.local",
+                'password' => $senha,
+                'role' => UserRole::EquipeTecnica,
+                'status' => UserStatus::Ativa,
+                'cargo' => 'Conta sintética legada sem vínculo MFA',
+                'setor_id' => $setores['Serviço Social']->id,
+            ]);
+
+            $resetEmail = "reset.{$e2eProject}@poc.local";
+            User::create([
+                'name' => "Recuperação E2E {$e2eProject} (Fictícia)",
+                'email' => $resetEmail,
+                'password' => $senha,
+                'role' => UserRole::EquipeTecnica,
+                'cargo' => 'Conta sintética de teste de recuperação',
+                'setor_id' => $setores['Serviço Social']->id,
+            ]);
+            DB::table('password_reset_tokens')->insert([
+                'email' => $resetEmail,
+                'token' => Hash::make("token-reset-sintetico-{$e2eProject}"),
+                'created_at' => now('UTC'),
+            ]);
+        }
 
         $joao = Crianca::create([
             'nome_completo' => 'João Pedro da Silva Fictício',

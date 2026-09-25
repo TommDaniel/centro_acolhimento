@@ -32,6 +32,7 @@ class CreateUserAccount
                 throw new AuthorizationException;
             }
 
+            $attributes['status'] = UserStatus::PendenteMfa->value;
             $user = User::query()->create($attributes);
             $this->audit->record('user.created', 'success', $lockedActor, $user, array_keys($attributes));
 

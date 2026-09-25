@@ -8,6 +8,8 @@ import PageHeader from '@/Components/PageHeader';
 
 export default function Form({ usuario, setores }) {
     const editando = Boolean(usuario);
+    const possuiMfaAtivo = Boolean(usuario?.has_active_mfa);
+    const situacaoEfetiva = usuario?.effective_status ?? usuario?.status ?? 'pendente_mfa';
     const form = useForm({
         name: usuario?.name ?? '',
         email: usuario?.email ?? '',
@@ -15,10 +17,22 @@ export default function Form({ usuario, setores }) {
         password_confirmation: '',
         setor_id: usuario?.setor_id ?? '',
         role: usuario?.role ?? 'equipe_tecnica',
-        status: usuario?.status ?? 'ativa',
+        status: situacaoEfetiva,
         cargo: usuario?.cargo ?? '',
         telefone: usuario?.telefone ?? '',
     });
+    const situacoes = possuiMfaAtivo
+        ? [
+            { value: 'ativa', label: 'Ativa' },
+            { value: 'inativa', label: 'Inativa' },
+        ]
+        : [
+            { value: 'pendente_mfa', label: 'Pendente de MFA' },
+            { value: 'inativa', label: 'Inativa' },
+        ];
+    const ajudaSituacao = possuiMfaAtivo
+        ? 'A conta pode ser inativada; a reativação mantém o segundo fator já vinculado.'
+        : 'Pendente de MFA significa que a pessoa ainda precisa entrar e vincular o aplicativo autenticador antes de acessar dados assistenciais.';
 
     const enviar = (e) => {
         e.preventDefault();
@@ -109,19 +123,31 @@ export default function Form({ usuario, setores }) {
                         <MenuItem value="equipe_tecnica">Equipe técnica</MenuItem>
                         <MenuItem value="administradora">Administradora</MenuItem>
                     </TextField>
-                    <TextField
-                        label="Situação da conta *"
-                        select
-                        fullWidth
-                        value={form.data.status}
-                        onChange={(e) => form.setData('status', e.target.value)}
-                        error={Boolean(form.errors.status)}
-                        helperText={form.errors.status}
-                    >
-                        <MenuItem value="ativa">Ativa</MenuItem>
-                        <MenuItem value="inativa">Inativa</MenuItem>
-                        <MenuItem value="pendente_mfa">Pendente de MFA</MenuItem>
-                    </TextField>
+                    {editando ? (
+                        <TextField
+                            label="Situação da conta *"
+                            select
+                            fullWidth
+                            value={form.data.status}
+                            onChange={(e) => form.setData('status', e.target.value)}
+                            error={Boolean(form.errors.status)}
+                            helperText={form.errors.status ?? ajudaSituacao}
+                        >
+                            {situacoes.map((situacao) => (
+                                <MenuItem key={situacao.value} value={situacao.value}>
+                                    {situacao.label}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                    ) : (
+                        <TextField
+                            label="Situação inicial"
+                            fullWidth
+                            value="Pendente de ativação do MFA"
+                            disabled
+                            helperText="A conta será ativada depois que a pessoa vincular o aplicativo autenticador."
+                        />
+                    )}
                     <TextField
                         label="Cargo"
                         fullWidth

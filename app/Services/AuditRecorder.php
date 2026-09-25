@@ -17,6 +17,7 @@ class AuditRecorder
     /** @var list<string> */
     private const FORBIDDEN_FIELD_NAMES = [
         'password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes',
+        'secret', 'code', 'qr_code', 'access_generation', 'last_accepted_time_step',
     ];
 
     /**

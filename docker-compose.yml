@@ -63,6 +63,8 @@ services:
       DB_PASSWORD: local_only_change_in_production
       DB_SSLMODE: disable
       SESSION_DRIVER: file
+      MFA_RESTRICTED_TTL_SECONDS: 60
+      MFA_VERIFIED_IDLE_TTL_SECONDS: 30
     volumes:
       - .:/app
       - e2e_public_build:/app/public/build
@@ -98,14 +100,13 @@ services:
     working_dir: /app
     environment:
       CI: "true"
-      PLAYWRIGHT_BASE_URL: http://app-e2e:8000
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
     volumes:
       - .:/app
       - e2e_node_modules:/app/node_modules
       - e2e_public_build:/app/public/build
     command: npm run test:e2e
-    networks:
-      - default
+    network_mode: "service:app-e2e"
 
   vite:
     image: node:22-alpine

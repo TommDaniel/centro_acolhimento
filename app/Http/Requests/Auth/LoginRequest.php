@@ -48,7 +48,10 @@ class LoginRequest extends FormRequest
 
         if (! Auth::attempt([
             ...$this->only('email', 'password'),
-            'status' => UserStatus::Ativa->value,
+            fn (Builder $query) => $query->whereIn('status', [
+                UserStatus::Ativa->value,
+                UserStatus::PendenteMfa->value,
+            ]),
             fn (Builder $query) => $query->whereIn('role', [
                 UserRole::Administradora->value,
                 UserRole::EquipeTecnica->value,

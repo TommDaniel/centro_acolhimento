@@ -7,6 +7,7 @@ use App\Actions\UpdateUserAccount;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Http\Middleware\AssignCorrelationId;
+use App\Http\Middleware\AuthenticateSessionWithHistoryPurge;
 use App\Http\Middleware\EnsureUserHasApprovedAccess;
 use App\Http\Middleware\RejectClientInstitutionContext;
 use App\Http\Middleware\RejectRememberedSession;
@@ -23,7 +24,6 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -49,11 +49,11 @@ class AuthorizationAuditFoundationTest extends TestCase
         $administrator = User::factory()->administrator()->create(['setor_id' => $secondSector->id]);
         $child = Crianca::query()->create(['nome_completo' => 'Acolhido Fictício Inicial']);
 
-        $this->actingAs($technical)
+        $this->actingAsWithVerifiedMfa($technical)
             ->put(route('criancas.update', $child), ['nome_completo' => 'Acolhido Fictício Técnico'])
             ->assertRedirect(route('criancas.show', $child));
 
-        $this->actingAs($administrator)
+        $this->actingAsWithVerifiedMfa($administrator)
             ->put(route('criancas.update', $child), ['nome_completo' => 'Acolhido Fictício Administração'])
             ->assertRedirect(route('criancas.show', $child));
 
@@ -65,7 +65,7 @@ class AuthorizationAuditFoundationTest extends TestCase
         $this->get(route('criancas.index'))->assertRedirect(route('login'));
 
         $inactive = User::factory()->inactive()->create();
-        $this->actingAs($inactive)->get(route('dashboard'))->assertForbidden();
+        $this->actingAsWithVerifiedMfa($inactive)->get(route('dashboard'))->assertForbidden();
         $this->assertGuest();
 
         $this->expectException(QueryException::class);
@@ -85,7 +85,7 @@ class AuthorizationAuditFoundationTest extends TestCase
             User::factory()->inactive()->create(),
             User::factory()->create(['status' => UserStatus::PendenteMfa]),
         ] as $revokedUser) {
-            $existingResponse = $this->actingAs($revokedUser)
+            $existingResponse = $this->actingAsWithVerifiedMfa($revokedUser)
                 ->get(route('criancas.show', $child).'?organization_id=999999');
             $existingResponse->assertForbidden();
             $this->assertTrue((bool) preg_match(
@@ -93,7 +93,7 @@ class AuthorizationAuditFoundationTest extends TestCase
                 (string) $existingResponse->headers->get('X-Correlation-ID'),
             ));
 
-            $missingResponse = $this->actingAs($revokedUser)
+            $missingResponse = $this->actingAsWithVerifiedMfa($revokedUser)
                 ->get(route('criancas.show', 999999999).'?organization_id=999999');
             $missingResponse->assertForbidden();
             $this->assertTrue((bool) preg_match(
@@ -121,7 +121,7 @@ class AuthorizationAuditFoundationTest extends TestCase
             AuthenticatesRequests::class,
             AssignCorrelationId::class,
             RejectRememberedSession::class,
-            AuthenticateSession::class,
+            AuthenticateSessionWithHistoryPurge::class,
             EnsureUserHasApprovedAccess::class,
             RejectClientInstitutionContext::class,
             SubstituteBindings::class,
@@ -144,12 +144,12 @@ class AuthorizationAuditFoundationTest extends TestCase
         $administrator = User::factory()->administrator()->create();
         $this->withoutVite();
 
-        $this->actingAs($technical)->get(route('equipe.index'))->assertForbidden();
-        $this->actingAs($technical)->get(route('equipe.create'))->assertForbidden();
-        $this->actingAs($technical)->get(route('auditoria.index'))->assertForbidden();
+        $this->actingAsWithVerifiedMfa($technical)->get(route('equipe.index'))->assertForbidden();
+        $this->actingAsWithVerifiedMfa($technical)->get(route('equipe.create'))->assertForbidden();
+        $this->actingAsWithVerifiedMfa($technical)->get(route('auditoria.index'))->assertForbidden();
 
-        $this->actingAs($administrator)->get(route('equipe.create'))->assertOk();
-        $this->actingAs($administrator)->get(route('auditoria.index'))->assertOk();
+        $this->actingAsWithVerifiedMfa($administrator)->get(route('equipe.create'))->assertOk();
+        $this->actingAsWithVerifiedMfa($administrator)->get(route('auditoria.index'))->assertOk();
     }
 
     public function test_administrator_cannot_change_own_privileged_role_or_access_status(): void
@@ -160,7 +160,7 @@ class AuthorizationAuditFoundationTest extends TestCase
             ['role' => UserRole::EquipeTecnica->value, 'status' => UserStatus::Ativa->value],
             ['role' => UserRole::Administradora->value, 'status' => UserStatus::Inativa->value],
         ] as $accessChange) {
-            $this->actingAs($administrator)
+            $this->actingAsWithVerifiedMfa($administrator)
                 ->put(route('equipe.update', $administrator), $this->accountPayload($administrator, $accessChange))
                 ->assertSessionHasErrors(['role', 'status']);
 
@@ -201,7 +201,7 @@ class AuthorizationAuditFoundationTest extends TestCase
         $actor = User::factory()->administrator()->create();
         $subject = User::factory()->administrator()->create();
 
-        $this->actingAs($actor)
+        $this->actingAsWithVerifiedMfa($actor)
             ->put(route('equipe.update', $subject), $this->accountPayload($subject, [
                 'role' => UserRole::EquipeTecnica->value,
                 'status' => UserStatus::Ativa->value,
@@ -270,7 +270,7 @@ class AuthorizationAuditFoundationTest extends TestCase
     {
         $technical = User::factory()->create();
 
-        $response = $this->actingAs($technical)
+        $response = $this->actingAsWithVerifiedMfa($technical)
             ->withHeader('X-Correlation-ID', 'correlation-forjada-pelo-cliente')
             ->get(route('criancas.index').'?organization_id=987654321');
 
@@ -302,7 +302,7 @@ class AuthorizationAuditFoundationTest extends TestCase
         $payload['password'] = 'nova-senha-ficticia-segura';
         $payload['password_confirmation'] = 'nova-senha-ficticia-segura';
 
-        $this->actingAs($administrator)
+        $this->actingAsWithVerifiedMfa($administrator)
             ->put(route('equipe.update', $technical), $payload)
             ->assertRedirect(route('equipe.index'));
 
@@ -311,7 +311,10 @@ class AuthorizationAuditFoundationTest extends TestCase
         $this->assertSame((string) $technical->id, $event->subject_id);
         $this->assertSame([], $event->changed_fields);
         $this->assertStringNotContainsString('nova-senha-ficticia-segura', $event->toJson());
-        $this->assertDatabaseMissing('audit_events', ['action' => 'user.updated']);
+        $this->assertDatabaseHas('audit_events', [
+            'action' => 'user.updated',
+            'subject_id' => (string) $technical->id,
+        ]);
         $this->assertNotSame($oldRememberToken, $technical->refresh()->getRememberToken());
 
         $this->app['auth']->forgetGuards();
@@ -333,7 +336,7 @@ class AuthorizationAuditFoundationTest extends TestCase
         $payload['password'] = 'senha-auto-reset-ficticia';
         $payload['password_confirmation'] = 'senha-auto-reset-ficticia';
 
-        $this->actingAs($administrator)
+        $this->actingAsWithVerifiedMfa($administrator)
             ->put(route('equipe.update', $administrator), $payload)
             ->assertSessionHasErrors('password');
 
@@ -347,8 +350,8 @@ class AuthorizationAuditFoundationTest extends TestCase
         $technical = User::factory()->create();
         $child = Crianca::query()->create(['nome_completo' => 'Acolhido Protegido Fictício']);
 
-        $this->actingAs($administrator)->delete(route('criancas.destroy', $child))->assertForbidden();
-        $this->actingAs($administrator)->delete(route('equipe.destroy', $technical))->assertForbidden();
+        $this->actingAsWithVerifiedMfa($administrator)->delete(route('criancas.destroy', $child))->assertForbidden();
+        $this->actingAsWithVerifiedMfa($administrator)->delete(route('equipe.destroy', $technical))->assertForbidden();
 
         $this->assertModelExists($child);
         $this->assertModelExists($technical);
@@ -359,7 +362,7 @@ class AuthorizationAuditFoundationTest extends TestCase
         $technical = User::factory()->create();
         $child = Crianca::query()->create(['nome_completo' => 'Nome Anterior Fictício']);
 
-        $response = $this->actingAs($technical)
+        $response = $this->actingAsWithVerifiedMfa($technical)
             ->withHeader('X-Correlation-ID', 'correlation-forjado-pelo-cliente')
             ->put(route('criancas.update', $child), [
                 'nome_completo' => 'Nome Atual Fictício',
@@ -387,7 +390,7 @@ class AuthorizationAuditFoundationTest extends TestCase
         $this->withoutExceptionHandling();
 
         try {
-            $this->actingAs($technical)->post(route('criancas.store'), [
+            $this->actingAsWithVerifiedMfa($technical)->post(route('criancas.store'), [
                 'nome_completo' => 'Cadastro que Deve Reverter Fictício',
             ]);
             $this->fail('A falha sintética deveria interromper a requisição.');
@@ -446,10 +449,10 @@ class AuthorizationAuditFoundationTest extends TestCase
         $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('mfa.enrollment'));
 
         $failed = AuditEvent::query()->where('action', 'auth.login_failed')->sole();
-        $succeeded = AuditEvent::query()->where('action', 'auth.login_succeeded')->sole();
+        $succeeded = AuditEvent::query()->where('action', 'auth.password_verified')->sole();
 
         $this->assertNull($failed->actor_id);
         $this->assertSame(app(InstitutionContext::class)->unit()->id, $failed->unidade_id);

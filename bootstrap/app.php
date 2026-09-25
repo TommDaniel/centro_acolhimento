@@ -2,10 +2,15 @@
 
 use App\Http\Middleware\AssignCorrelationId;
 use App\Http\Middleware\AuditAuthorizationDenials;
+use App\Http\Middleware\AuthenticateSessionWithHistoryPurge;
+use App\Http\Middleware\EnsureMfaRestrictedSession;
+use App\Http\Middleware\EnsureMfaVerifiedSession;
 use App\Http\Middleware\EnsureUserHasApprovedAccess;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\NoStoreSensitiveResponse;
 use App\Http\Middleware\RejectClientInstitutionContext;
 use App\Http\Middleware\RejectRememberedSession;
+use App\Http\Middleware\ThrottleMfaAttempt;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -13,9 +18,9 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Str;
+use Inertia\EncryptHistoryMiddleware;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -31,12 +36,18 @@ $app = Application::configure(basePath: dirname(__DIR__))
             AssignCorrelationId::class,
             RejectRememberedSession::class,
             AuditAuthorizationDenials::class,
+            EncryptHistoryMiddleware::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         $middleware->alias([
             'approved' => EnsureUserHasApprovedAccess::class,
+            'auth.session' => AuthenticateSessionWithHistoryPurge::class,
+            'mfa.restricted' => EnsureMfaRestrictedSession::class,
+            'mfa.verified' => EnsureMfaVerifiedSession::class,
+            'sensitive.no-store' => NoStoreSensitiveResponse::class,
+            'mfa.throttle' => ThrottleMfaAttempt::class,
         ]);
 
         $middleware->appendToPriorityList(
@@ -49,10 +60,14 @@ $app = Application::configure(basePath: dirname(__DIR__))
         );
         $middleware->appendToPriorityList(
             RejectRememberedSession::class,
-            AuthenticateSession::class,
+            AuthenticateSessionWithHistoryPurge::class,
         );
         $middleware->appendToPriorityList(
-            AuthenticateSession::class,
+            AuthenticateSessionWithHistoryPurge::class,
+            EnsureMfaVerifiedSession::class,
+        );
+        $middleware->appendToPriorityList(
+            EnsureMfaVerifiedSession::class,
             EnsureUserHasApprovedAccess::class,
         );
         $middleware->appendToPriorityList(
@@ -65,6 +80,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash(['password', 'password_confirmation', 'code', 'token']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );

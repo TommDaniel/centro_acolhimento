@@ -3,13 +3,43 @@
 namespace Tests;
 
 use App\Actions\ProvisionInstitutionContext;
+use App\Enums\UserStatus;
+use App\Models\MfaEnrollment;
+use App\Models\User;
 use App\Support\DestructiveTestDatabaseGuard;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Schema;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function actingAsWithVerifiedMfa(Authenticatable $user, $guard = null): static
+    {
+        if ($user instanceof User
+            && $user->status === UserStatus::Ativa
+            && Schema::hasTable('mfa_enrollments')) {
+            MfaEnrollment::query()->firstOrCreate(
+                ['user_id' => $user->getKey(), 'state' => 'active'],
+                [
+                    'version' => 1,
+                    'secret' => 'JBSWY3DPEHPK3PXP',
+                    'confirmed_at' => now('UTC'),
+                ],
+            );
+
+            $now = now('UTC')->getTimestamp();
+            $this->withSession([
+                'auth.level' => 'mfa_verified',
+                'auth.access_generation' => $user->access_generation,
+                'auth.mfa_issued_at' => $now,
+                'auth.mfa_last_activity_at' => $now,
+            ]);
+        }
+
+        return parent::actingAs($user, $guard);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

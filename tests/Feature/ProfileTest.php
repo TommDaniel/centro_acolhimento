@@ -22,7 +22,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->get('/profile');
 
         $response->assertOk();
@@ -33,7 +33,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->patch('/profile', [
                 'name' => 'Test User',
                 'email' => 'test@example.com',
@@ -60,7 +60,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->patch('/profile', [
                 'name' => 'Test User',
                 'email' => $user->email,
@@ -78,7 +78,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->delete('/profile', [
                 'password' => 'password',
             ]);
@@ -93,7 +93,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAsWithVerifiedMfa($user)
             ->from('/profile')
             ->delete('/profile', [
                 'password' => 'wrong-password',

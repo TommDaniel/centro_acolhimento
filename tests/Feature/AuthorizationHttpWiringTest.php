@@ -55,7 +55,7 @@ class AuthorizationHttpWiringTest extends TestCase
 
         foreach ([$technical, $administrator] as $activeUser) {
             foreach ($pageRoutes as $url) {
-                $this->actingAs($activeUser)->get($url)->assertOk();
+                $this->actingAsWithVerifiedMfa($activeUser)->get($url)->assertOk();
             }
 
             foreach ([
@@ -64,7 +64,7 @@ class AuthorizationHttpWiringTest extends TestCase
                 route('reports.pdf', $records['report']),
                 route('pertences.pdf', $records['belonging']),
             ] as $url) {
-                $this->actingAs($activeUser)
+                $this->actingAsWithVerifiedMfa($activeUser)
                     ->get($url)
                     ->assertOk()
                     ->assertHeader('content-type', 'application/pdf');
@@ -77,28 +77,28 @@ class AuthorizationHttpWiringTest extends TestCase
         $technical = User::factory()->create();
         $records = $this->assistentialRecords($technical);
 
-        $this->actingAs($technical)->put(route('pias.update', $records['pia']), [
+        $this->actingAsWithVerifiedMfa($technical)->put(route('pias.update', $records['pia']), [
             'crianca_id' => $records['child']->id,
             'consideracoes_tecnicas' => 'Atualização de PIA inteiramente fictícia.',
         ])->assertRedirect(route('pias.show', $records['pia']));
 
-        $this->actingAs($technical)->put(route('visitas-tecnicas.update', $records['visit']), [
+        $this->actingAsWithVerifiedMfa($technical)->put(route('visitas-tecnicas.update', $records['visit']), [
             'crianca_id' => $records['child']->id,
             'data_visita' => '2026-09-24',
             'relato' => 'Atualização de visita inteiramente fictícia.',
         ])->assertRedirect(route('visitas-tecnicas.show', $records['visit']));
 
-        $this->actingAs($technical)->put(route('reports.update', $records['report']), [
+        $this->actingAsWithVerifiedMfa($technical)->put(route('reports.update', $records['report']), [
             'crianca_id' => $records['child']->id,
             'introducao' => 'Introdução atualizada fictícia.',
             'desenvolvimento' => 'Desenvolvimento atualizado fictício.',
         ])->assertRedirect(route('reports.show', $records['report']));
 
-        $this->actingAs($technical)->put(route('pertences.update', $records['belonging']), [
+        $this->actingAsWithVerifiedMfa($technical)->put(route('pertences.update', $records['belonging']), [
             'data_entrega' => '2026-09-24',
         ])->assertRedirect(route('pertences.show', $records['belonging']));
 
-        $this->actingAs($technical)->put(route('agenda.update', $records['event']), [
+        $this->actingAsWithVerifiedMfa($technical)->put(route('agenda.update', $records['event']), [
             'titulo' => 'Agenda atualizada fictícia',
             'tipo' => 'tarefa',
             'inicio' => '2026-09-24T09:00:00',
@@ -119,30 +119,30 @@ class AuthorizationHttpWiringTest extends TestCase
             $suffix = (string) ($index + 1);
             $childName = 'Acolhido Store HTTP Fictício '.$suffix;
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('criancas.store'), ['nome_completo' => $childName])
                 ->assertSessionHasNoErrors();
 
             $child = Crianca::query()->where('nome_completo', $childName)->sole();
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('criancas.documentos.store', $child), [
                     'anexos' => [UploadedFile::fake()->create('documento-ficticio-'.$suffix.'.pdf', 10, 'application/pdf')],
                 ])
                 ->assertSessionHasNoErrors();
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('criancas.familiares.store', $child), [
                     'tipo' => 'familiar',
                     'nome' => 'Familiar Store HTTP Fictício '.$suffix,
                 ])
                 ->assertSessionHasNoErrors();
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('pias.store'), ['crianca_id' => $child->id])
                 ->assertSessionHasNoErrors();
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('visitas-tecnicas.store'), [
                     'crianca_id' => $child->id,
                     'data_visita' => '2026-09-24',
@@ -150,7 +150,7 @@ class AuthorizationHttpWiringTest extends TestCase
                 ])
                 ->assertSessionHasNoErrors();
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('reports.store'), [
                     'crianca_id' => $child->id,
                     'introducao' => 'Introdução store inteiramente fictícia.',
@@ -158,7 +158,7 @@ class AuthorizationHttpWiringTest extends TestCase
                 ])
                 ->assertSessionHasNoErrors();
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('pertences.store'), [
                     'crianca_id' => $child->id,
                     'itens' => [['descricao' => 'Item store fictício', 'quantidade' => '1']],
@@ -167,7 +167,7 @@ class AuthorizationHttpWiringTest extends TestCase
                 ->assertSessionHasNoErrors();
 
             $eventTitle = 'Agenda store HTTP fictícia '.$suffix;
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('agenda.store'), [
                     'titulo' => $eventTitle,
                     'tipo' => 'tarefa',
@@ -177,12 +177,12 @@ class AuthorizationHttpWiringTest extends TestCase
                 ->assertRedirect(route('agenda.index'));
 
             $event = Evento::query()->where('titulo', $eventTitle)->sole();
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->patch(route('agenda.concluido', $event))
                 ->assertRedirect(route('agenda.index'));
             $this->assertTrue($event->fresh()->concluido);
 
-            $this->actingAs($activeUser)
+            $this->actingAsWithVerifiedMfa($activeUser)
                 ->get(route('busca', ['q' => $childName]))
                 ->assertOk();
         }
@@ -218,7 +218,7 @@ class AuthorizationHttpWiringTest extends TestCase
         $technical = User::factory()->create();
         $sector = Setor::query()->create(['nome' => 'Setor Protegido HTTP Fictício']);
 
-        $this->actingAs($technical)
+        $this->actingAsWithVerifiedMfa($technical)
             ->post(route('equipe.store'), [
                 'name' => 'Conta Indevida Fictícia',
                 'email' => 'conta-indevida-ficticia@poc.local',
@@ -229,11 +229,11 @@ class AuthorizationHttpWiringTest extends TestCase
             ])
             ->assertForbidden();
 
-        $this->actingAs($technical)
+        $this->actingAsWithVerifiedMfa($technical)
             ->post(route('setores.store'), ['nome' => 'Setor Indevido Fictício'])
             ->assertForbidden();
 
-        $this->actingAs($technical)
+        $this->actingAsWithVerifiedMfa($technical)
             ->put(route('setores.update', $sector), ['nome' => 'Setor Alterado Indevidamente'])
             ->assertForbidden();
 
@@ -264,7 +264,7 @@ class AuthorizationHttpWiringTest extends TestCase
 
         foreach ([$technical, $administrator] as $activeUser) {
             foreach ($deleteRoutes as $url) {
-                $this->actingAs($activeUser)->delete($url)->assertForbidden();
+                $this->actingAsWithVerifiedMfa($activeUser)->delete($url)->assertForbidden();
             }
         }
     }
@@ -277,9 +277,9 @@ class AuthorizationHttpWiringTest extends TestCase
         $this->withoutVite();
 
         foreach ([route('equipe.index'), route('equipe.create'), route('equipe.edit', $technical), route('auditoria.index')] as $url) {
-            $this->actingAs($administrator)->get($url)->assertOk();
-            $this->actingAs($technical)->get($url)->assertForbidden();
-            $this->actingAs($inactive)->get($url)->assertForbidden();
+            $this->actingAsWithVerifiedMfa($administrator)->get($url)->assertOk();
+            $this->actingAsWithVerifiedMfa($technical)->get($url)->assertForbidden();
+            $this->actingAsWithVerifiedMfa($inactive)->get($url)->assertForbidden();
             $this->get($url)->assertRedirect(route('login'));
         }
     }
@@ -289,7 +289,7 @@ class AuthorizationHttpWiringTest extends TestCase
         $technical = User::factory()->create();
         $this->withoutVite();
 
-        $response = $this->actingAs($technical)->get(route('auditoria.index'));
+        $response = $this->actingAsWithVerifiedMfa($technical)->get(route('auditoria.index'));
 
         $response->assertForbidden()
             ->assertHeader('X-Correlation-ID')
@@ -317,7 +317,7 @@ class AuthorizationHttpWiringTest extends TestCase
         });
 
         $this->withoutVite();
-        $this->actingAs($administrator)
+        $this->actingAsWithVerifiedMfa($administrator)
             ->get(route('auditoria.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
@@ -379,7 +379,7 @@ class AuthorizationHttpWiringTest extends TestCase
         $belonging->save();
         $this->withoutVite();
 
-        $this->actingAs($administrator)
+        $this->actingAsWithVerifiedMfa($administrator)
             ->get(route('setores.show', $sector))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page

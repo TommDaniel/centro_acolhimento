@@ -9,16 +9,27 @@ import PageHeader from '@/Components/PageHeader';
 import EmptyState from '@/Components/EmptyState';
 import { iniciais } from '@/utils/format';
 
+const situacoes = {
+    ativa: { label: 'Ativa', color: 'success' },
+    inativa: { label: 'Inativa', color: 'default' },
+    pendente_mfa: { label: 'Pendente de MFA', color: 'warning' },
+};
+
 function CardMembro({ user, isAdmin, indice }) {
     const detalhes = [user.cargo, user.email, user.telefone].filter(Boolean);
+    const situacaoEfetiva = user.effective_status ?? user.status;
+    const situacao = situacoes[situacaoEfetiva] ?? { label: 'Situação desconhecida', color: 'default' };
 
     return (
         <motion.div
+            style={{ minWidth: 0 }}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: indice * 0.04 }}
         >
             <Card
+                component="article"
+                aria-label={`Conta de ${user.name}`}
                 variant="outlined"
                 sx={{
                     p: 2, borderRadius: 3, height: '100%',
@@ -36,6 +47,12 @@ function CardMembro({ user, isAdmin, indice }) {
                             {user.name}
                         </Typography>
                         {user.is_admin && <Chip label="Admin" size="small" color="primary" />}
+                        <Chip
+                            label={situacao.label}
+                            size="small"
+                            color={situacao.color}
+                            variant={situacaoEfetiva === 'ativa' ? 'filled' : 'outlined'}
+                        />
                     </Box>
                     {detalhes.map((detalhe) => (
                         <Typography key={detalhe} variant="caption" color="text.secondary" display="block" noWrap>

@@ -36,7 +36,7 @@ class AuthorizationSecurityQATest extends TestCase
         $event = AuditEvent::query()->where('action', 'auth.remember_rejected')->sole();
         $this->assertSame($user->id, $event->actor_id);
         $this->assertSame([], $event->changed_fields);
-        $this->assertDatabaseMissing('audit_events', ['action' => 'auth.login_succeeded']);
+        $this->assertDatabaseMissing('audit_events', ['action' => 'auth.password_verified']);
     }
 
     public function test_password_change_revokes_an_existing_authenticated_session(): void

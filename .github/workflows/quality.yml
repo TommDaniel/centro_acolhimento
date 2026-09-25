@@ -262,6 +262,7 @@ jobs:
           DB_PASSWORD: local_only_change_in_production
           DB_SSLMODE: disable
           SESSION_DRIVER: file
+          MFA_RESTRICTED_TTL_SECONDS: 60
 
       - name: Run Playwright
         run: npm run test:e2e

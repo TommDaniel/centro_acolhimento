@@ -41,8 +41,21 @@ class PasswordResetTest extends TestCase
 
         $this->post('/forgot-password', ['email' => $user->email]);
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) {
-            $response = $this->get('/reset-password/'.$notification->token);
+        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+            $mail = $notification->toMail($user);
+            $parts = parse_url($mail->actionUrl);
+            parse_str($parts['fragment'] ?? '', $fragment);
+            $this->assertSame('/reset-password', $parts['path'] ?? null);
+            $this->assertArrayNotHasKey('query', $parts);
+            $this->assertTrue(hash_equals($notification->token, $fragment['token'] ?? ''));
+
+            $this->get($parts['path'] ?? '/')->assertOk();
+            $capture = $this->post(route('password.reset.capture'), [
+                'token' => $fragment['token'] ?? '',
+                'email' => $fragment['email'] ?? '',
+            ]);
+            $capture->assertRedirect(route('password.reset'));
+            $response = $this->get(route('password.reset'));
 
             $response->assertStatus(200);
 

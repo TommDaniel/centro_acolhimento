@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\AuditRecorder;
+use App\Services\TerminateAuthenticatedSession;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,7 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RejectRememberedSession
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private TerminateAuthenticatedSession $terminateSession,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -24,9 +28,7 @@ class RejectRememberedSession
         $user = $request->user();
 
         $this->audit->record('auth.remember_rejected', 'denied', $user, $user);
-        $guard->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $this->terminateSession->handle($request);
 
         return new RedirectResponse(route('login'));
     }

@@ -162,7 +162,7 @@ class AuthorizationPolicyMatrixTest extends TestCase
         $technical = User::factory()->create();
         $target = User::factory()->administrator()->create();
 
-        $this->actingAs($technical)
+        $this->actingAsWithVerifiedMfa($technical)
             ->put(route('equipe.update', $target), [
                 'name' => 'Nome Alterado Indevidamente Fictício',
                 'email' => $target->email,

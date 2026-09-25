@@ -20,7 +20,7 @@ class AuditAuthentication
         request()->attributes->set('_auth_login_audited', true);
         $user = $event->user instanceof User ? $event->user : null;
 
-        $this->audit->record('auth.login_succeeded', 'success', $user, $user);
+        $this->audit->record('auth.password_verified', 'success', $user, $user);
     }
 
     public function handleFailed(Failed $event): void

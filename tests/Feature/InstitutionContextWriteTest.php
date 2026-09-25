@@ -102,13 +102,13 @@ class InstitutionContextWriteTest extends TestCase
             ['organization.id' => 1],
             ['filters[organization][id]' => 1],
         ] as $spoofed) {
-            $this->actingAs($user)
+            $this->actingAsWithVerifiedMfa($user)
                 ->postJson(route('criancas.store'), array_replace_recursive($valid, $spoofed))
                 ->assertUnprocessable()
                 ->assertJsonValidationErrors('contexto');
         }
 
-        $this->actingAs($user)
+        $this->actingAsWithVerifiedMfa($user)
             ->postJson(route('criancas.store', ['filters' => ['organizacao' => ['id' => 1]]]), $valid)
             ->assertUnprocessable()
             ->assertJsonValidationErrors('contexto');
@@ -117,7 +117,7 @@ class InstitutionContextWriteTest extends TestCase
             'filters' => ['organization_id' => 1],
         ]);
 
-        $this->actingAs($user)
+        $this->actingAsWithVerifiedMfa($user)
             ->postJson($queryCollisionUrl, array_merge($valid, ['filters' => 'safe']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('contexto');
@@ -135,7 +135,7 @@ class InstitutionContextWriteTest extends TestCase
 
         $user = User::factory()->create();
 
-        $this->actingAs($user)
+        $this->actingAsWithVerifiedMfa($user)
             ->postJson(route('criancas.store'), [
                 'nome_completo' => 'Pessoa com unidade de medida Fictícia',
                 'unit' => 'mg',

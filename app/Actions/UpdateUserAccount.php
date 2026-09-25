@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
 use App\Services\AuditRecorder;
+use App\Services\PasswordResetTokenService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,7 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class UpdateUserAccount
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private PasswordResetTokenService $passwordResetTokens,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -37,6 +41,17 @@ class UpdateUserAccount
             $lockedSubject = User::query()->lockForUpdate()->findOrFail($subject->getKey());
             $requestedRole = UserRole::from($attributes['role']);
             $requestedStatus = UserStatus::from($attributes['status']);
+
+            if ($requestedStatus === UserStatus::Ativa && ! $lockedSubject->hasActiveMfa()) {
+                $requestedStatus = UserStatus::PendenteMfa;
+                $attributes['status'] = $requestedStatus->value;
+            }
+
+            if ($requestedStatus === UserStatus::PendenteMfa && $lockedSubject->hasActiveMfa()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Uma conta com MFA ativo não pode retornar ao estado pendente por esta tela.',
+                ]);
+            }
 
             if ($lockedSubject->is($lockedActor) && array_key_exists('password', $attributes)) {
                 throw ValidationException::withMessages([
@@ -69,10 +84,15 @@ class UpdateUserAccount
                 $lockedSubject->remember_token = Str::random(60);
             }
 
+            if ($lockedSubject->isDirty(['password', 'email', 'status', 'role'])) {
+                $lockedSubject->access_generation++;
+                $this->passwordResetTokens->revokeLocked($lockedSubject);
+            }
+
             $changedFields = array_keys($lockedSubject->getDirty());
             $lockedSubject->save();
 
-            $accountFields = array_values(array_diff($changedFields, ['password', 'remember_token']));
+            $accountFields = array_values(array_diff($changedFields, ['password', 'remember_token', 'access_generation']));
 
             if ($accountFields !== []) {
                 $this->audit->record('user.updated', 'success', $lockedActor, $lockedSubject, $accountFields);
