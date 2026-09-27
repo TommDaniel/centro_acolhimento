@@ -1,6 +1,6 @@
 # Plano de evolução do Centro de Acolhimento
 
-> PRD enxuto + backlog técnico. Documento vivo, criado em 31/07/2026 e atualizado em 16/09/2026 para consolidar decisões assistenciais, documentais, Gmail/PWA/LLM e o perfil candidato de infraestrutura, sem confundir decisão com implementação ou autorização para dados reais.
+> PRD enxuto + backlog técnico. Documento vivo, criado em 31/07/2026 e reorganizado em 25/09/2026 para priorizar um protótipo funcional de validação com as técnicas, preservando o backlog de produção e a distinção entre decisão, implementação e autorização para dados reais.
 
 ## 1. Como usar este documento
 
@@ -10,6 +10,7 @@
 - Prioridade **P2**: melhora confiabilidade, escala, manutenção ou experiência.
 - Tamanhos `P/M/G/XG` são relativos e devem ser reestimados após as decisões de produto e o desenho do banco.
 - Os identificadores (`SEG-01`, `SAU-02` etc.) devem ser usados em issues, commits e pull requests.
+- Os marcos `PROT-01*` agrupam cortes de tarefas já existentes para apresentação e validação; concluí-los **não** conclui automaticamente as tarefas funcionais referenciadas nem autoriza dados reais.
 
 ## 2. Resultado esperado
 
@@ -34,13 +35,40 @@ Transformar a POC em um sistema de produção seguro e auditável que:
 - Ainda é decisão de produto em `DEC-01` se a alocação e a transferência entre casas precisam de registro estruturado e histórico próprio. Até a aprovação, “casa” não deve virar apenas um campo atual sobrescrevível nem ser confundida com a unidade.
 - O panorama consolidado de arquitetura, módulos, dependências, riscos, roadmap e primeiros cortes executáveis está no [blueprint do projeto](docs/architecture/project-blueprint.md). `TODO.md` continua sendo a fonte de verdade dos estados e prioridades.
 
+### Meta imediata — protótipo da rotina técnica (`PROT-01`)
+
+- [ ] **PROT-01 — Apresentar uma jornada funcional às técnicas e validar o escopo antes de aprofundar a construção** (P1, G; agrega os cortes abaixo; não é aceite de produção)
+  - Reutilizar a POC navegável, os formulários/PDFs, agenda e busca já existentes, o PostgreSQL de desenvolvimento/CI, o contexto institucional único, as Policies/auditoria iniciais e `IAM-02A`. Não reconstruir essas telas sem evidência de necessidade.
+  - **Primeira apresentação funcional:** com contas individuais e dados explicitamente fictícios, uma técnica encontra a ficha, registra/consulta o ingresso e a situação, usa a agenda compartilhada, preenche/reabre os cinco documentos e visualiza PDFs demonstrativos. Outra técnica autorizada encontra o mesmo caso, a fonte da informação e quem a atualizou. Campos sem implementação devem ser identificados como prévia, nunca simulados como persistidos.
+  - **Primeira apresentação visual:** Saúde, Educação e indicadores anuais mostram navegação, campos e exemplos sintéticos para colher feedback, **sem** alegar que lançamentos, medicações, exames ou contagens já são funcionais. `SAU-*`, `EDU-*`, `ATE-*` e `BI-*` continuam obrigatórios para a etapa funcional posterior, conforme o retorno das técnicas.
+  - **Prova do protótipo:** PHPUnit/integração PostgreSQL para ingresso, situações, busca e autorização negativa; Playwright desktop/mobile percorrendo ficha → agenda → documentos; inspeção visual de PDFs com/sem retrato fictício e 1–4 profissionais quando esses cortes estiverem presentes. Campos de prévia não podem salvar nem entrar em contagens. Nenhum teste ou apresentação usa dado, foto ou documento real.
+  - [ ] **PROT-01A — Preparar demonstração segura e reaproveitar a POC** (`IAM-02A`, `SEG-02A/03A`, `QA-01`, corte mínimo de `ARQ-02/SEG-05` se houver foto)
+    - Preparar ambiente isolado e contas/fichas/arquivos **somente sintéticos**; confirmar login TOTP, permissões negativas, navegação móvel/teclado e ausência de vazamento em busca/PDF/log. Retrato de demonstração é fictício e privado, sem URL permanente; se esse controle ainda não existir, não demonstrar upload/foto como funcional.
+  - [ ] **PROT-01B — Localizar, ingressar e acompanhar o acolhido** (`ACO-01/02/03`, `CAD-01/02/04`, `BE-01`, `DEC-01A/06C`)
+    - Na “Nova criança”, cobrir os blocos da Ficha de ingresso adotada em `DEC-06C`, com obrigatoriedade provisória v0, incluindo escola/situação escolar e **órgão condutor separado da pessoa condutora**; reutilizar dados no PIA e na ficha de ingresso. Busca por nome/processo e informação/documento estruturado leva à ficha e mostra fonte, situação atual e atualização por pessoa/data. Filtros funcionais: Acolhidos, Desacolhidos, Evadidos, Internados e Todos; evasão/internação não encerram o acolhimento e o histórico de retorno permanece visível.
+  - [ ] **PROT-01C — Agenda compartilhada e cinco documentos preenchíveis** (`AGD-01/02`, `DOC-01/02/03/04`, `DEC-02/04/06C`)
+    - Demonstrar criação/consulta/edição de compromisso com acolhido e responsável, filtros por pessoa/responsável e reatribuição sem apagar autoria. Demonstrar PIA do modelo mais completo, Relatório de visita técnica, Parecer do acolhido, Ficha de ingresso e Termo de Recebimento/Entrega. Priorizar seleção/autopreenchimento; destinatário opcional no Parecer; 1–4 profissionais identificados de forma flexível no PDF, **sem alegar assinatura eletrônica**. Para concluir este corte, demonstrar o PIA com e sem retrato **fictício e privado** após `PROT-01A/DOC-01`; enquanto isso não estiver seguro, a foto fica explicitamente pendente, nunca exposta por URL pública. O Parecer mantém narrativa técnica guiada e pedido ao juiz; nenhum documento demonstrativo é enviado oficialmente.
+  - [ ] **PROT-01D — Validar visualmente Saúde, Educação e informativo anual** (`SAU-01/02/03/04/05`, `EDU-01/02`, `ATE-01/02`, `BI-01`)
+    - Mostrar às técnicas, com exemplos fictícios e indicação visível de **prévia não funcional**, os fluxos de UBS/UPA/Hospital/CAPS, acompanhante, encaminhamento, exames, medicação contínua e pontual, escola/matrícula, reuniões/ligações e números por área. Confirmar rótulos, campos, sequência de uso e o que deve vir primeiro na construção. Não inferir autorização para informação sexual/reprodutiva nem contar agenda como atendimento realizado.
+  - [ ] **PROT-01E — Produzir vídeo didático da demonstração** (P1, M; depende de `PROT-01A/01B/01C/01D`)
+    - Criar roteiro em português simples e vídeo de aproximadamente **5–10 minutos**, ajustando a duração para explicar com clareza sem acelerar telas. Percorrer busca/ficha/ingresso e situações, agenda, os cinco documentos/PDFs e as prévias de Saúde, Educação e informativo anual; mostrar também a experiência em celular. Iniciar com aviso de que pessoas, fotos e casos são fictícios; identificar na tela e na narração o que já funciona e o que é apenas prévia visual, sem simular salvamento, emissão oficial ou contagem.
+    - Capturar a navegação reproduzível com o Playwright **fixado no `package-lock.json`**, pelo fluxo `npm run test:e2e`; editar o material para acrescentar narração clara, legendas sincronizadas em português, capítulos e destaque/zoom discreto no controle ou informação mencionada. Usar música de fundo suave com licença de uso verificada e crédito quando exigido, em volume que não prejudique a voz. Revisar leitura das legendas, contraste, ritmo e áudio em desktop e celular.
+    - Usar exclusivamente ambiente, contas, fotos e documentos sintéticos. Antes de gravar e compartilhar, ocultar senhas, QR/segredo TOTP, códigos de recuperação, tokens, URLs sensíveis e qualquer notificação/dado real; revisar quadros, áudio, legendas, metadados e artefatos gerados. Distribuir somente por canal privado com acesso às pessoas convidadas após revisão, nunca por link público ou não listado tratado como controle de acesso. Guardar versão/data do vídeo e do roteiro para que a gravação não seja confundida com o estado futuro do sistema.
+    - Aceite: o vídeo cobre os fluxos previstos, tem linguagem sem jargões, legendas fiéis, destaques sincronizados e música licenciada discreta; revisão confirma ausência de dados reais/segredos e distinção inequívoca entre funcionalidade e prévia. A gravação não substitui testes E2E nem homologação prática.
+  - [ ] **PROT-01F — Coletar devolutivas das técnicas e registrar mudanças de escopo** (`DEC-06`, `QA-02`, `PROT-01E`)
+    - Enviar vídeo e perguntas curtas por tela/documento: o que está correto, falta ou deve mudar, inclusive obrigatoriedade dos campos, foto no PIA e prioridade de Saúde/Educação/indicadores. Fazer sessão de dúvidas se necessário e registrar respostas atribuídas por fluxo, sem incluir caso real na devolutiva. Classificar cada retorno como defeito, refinamento ou novo escopo, ligar ao ID do backlog, estimar impacto e submeter decisões/alterações contratuais a aprovação das partes. Feedback por vídeo não equivale a técnica operar o sistema; programar teste prático posterior com dados fictícios em desktop/celular (`QA-02`). Feedback não altera automaticamente prazo nem requisito aprovado.
+  - **Aceite de `PROT-01`:** `PROT-01A–E` demonstrados e devolutivas de `PROT-01F` rastreadas; o protótipo não é confundido com homologação final, deploy de produção ou liberação de dados reais. `DOC-05/06`, storage/segurança completos, módulos de Saúde/Educação/BI persistidos, Gmail/PWA e gates de produção continuam em suas tarefas próprias quando não concluídos.
+
+**Referência de planejamento contratual informada pelo responsável:** prazo global estimado de **20–26 semanas** após as condições necessárias ao início; Entendimento e organização **2–3**, Desenho e protótipo **2–3**, Construção **7–9**, Validação e documentos **5–6**, Testes com a instituição **3–4**, Publicação e treinamento **1–2** semanas. `PROT-01` concentra a prioridade atual de desenho/validação e não altera essas cláusulas, não fixa uma data de início nem presume aceite da fase. Conforme as cláusulas informadas: ajuste por alterações/validações depende de comum acordo; atraso da contratante no fornecimento de informações, documentos ou aprovações pode prorrogar o cronograma; atraso de pagamento suspende temporariamente as atividades. Registrar esses fatos e seus impactos, sem recalcular automaticamente prazo ou escopo neste backlog. O encaixe das faixas no prazo global precisa constar de cronograma acordado, não de soma automática.
+
 ## 3. Estado atual verificado no código
 
 ### Já existe, mas precisa ser confirmado pelos usuários
 
 - A foto pode ser enviada no cadastro e o template atual do PDF do PIA tenta exibi-la em “Dados de identificação”. Isso funciona com arquivo local disponível, mas não é confiável no deploy atual e ainda precisa de teste visual/regressivo (`DOC-01`).
-- A agenda é **compartilhada na visualização**: o backend carrega todos os eventos para todos os usuários autenticados. Admin pode alterar tudo; servidor altera eventos do próprio setor. A interface não explica essa regra nem oferece filtros de escopo (`AGD-01`).
+- A agenda da POC já tem calendário e visualização compartilhada entre contas autorizadas, mas ainda carrega histórico amplo, não explica suficientemente o compartilhamento nem oferece os filtros/responsáveis previstos em `AGD-01/02`. A autorização atual é a das Policies, não a antiga regra de edição por setor descrita no README.
 - O PIA tem campos narrativos de Saúde e Educação, mas não há módulos/abas para registrar atendimentos, medicações, exames, escola ou contatos ao longo do tempo.
+- A POC já tem cadastro/ficha, busca inicial por identificadores, agenda, PIA, visita, parecer/relatório e termo de pertences com PDFs. A fundação local já usa PostgreSQL, contexto único, acesso por Policies/auditoria em primeiro corte e `IAM-02A` com TOTP; isso é base para `PROT-01`, não prova que as melhorias pedidas estejam prontas ou implantadas ao cliente.
 
 ### Lacunas funcionais confirmadas
 
@@ -61,10 +89,10 @@ Transformar a POC em um sistema de produção seguro e auditável que:
 - O README identifica a aplicação como POC sem segurança de produção e destinada apenas a dados fictícios.
 - `ARQ-01A` isolou o bootstrap SQLite efêmero e o reset sintético exclusivamente no runtime legado `VERCEL`; local/CI usam PostgreSQL. A remoção ocorre no cutover Contabo. A implantação PostgreSQL definitiva, com TLS, roles mínimas, backup/PITR e restore, continua bloqueada em `ARQ-01/03/07`.
 - Fotos e documentos são gravados no disco `public` e expostos por URL; não há autorização no download, expiração de link, varredura antimalware ou armazenamento durável no deploy atual.
-- Cadastro público GET/POST: **CONTROLADO por `SEG-01A` em 26/08/2026**; as rotas estão ausentes e PHPUnit/E2E desktop e mobile provaram a negação direta e a preservação do login. `SEG-01` permanece aberto para Fortify/TOTP, lifecycle, recuperação e revogação de sessões.
-- O acesso é amplo: qualquer usuário autenticado visualiza toda a base; algumas alterações/exclusões de criança e familiar não passam por Policies específicas.
-- Não há trilha de auditoria de leituras, downloads, exportações e mudanças; exclusões são definitivas e podem apagar registros relacionados em cascata.
-- A suíte de testes cobre principalmente o esqueleto de autenticação/perfil, não os fluxos de negócio, permissões, PDFs ou relatórios.
+- Cadastro público GET/POST: **CONTROLADO por `SEG-01A` em 26/08/2026**; as rotas estão ausentes e PHPUnit/E2E desktop e mobile provaram a negação direta e a preservação do login. `IAM-02A` entregou o primeiro login/TOTP e revogação básica; `SEG-01/IAM-02` permanecem abertos para recovery codes, step-up, re-enrollment, recuperação assistida e lifecycle completo.
+- `SEG-02A` já introduziu papéis aprovados, Policies por recurso/ação atual e negação de exclusão física nas rotas cobertas. `SEG-02` permanece aberto para ações futuras, busca/contagens sensíveis e revisão completa; novos módulos não herdam permissão somente por aparecerem na interface.
+- `SEG-03A` já introduziu auditoria append-only e autoria/data em primeiro corte. Busca, demais documentos, agenda, PDF/download/exportação e histórico funcional versionado ainda exigem cobertura em `SEG-03`; não alegar trilha completa.
+- Os testes de PostgreSQL, autorização/MFA e E2E de login existem, mas os fluxos de ingresso, situação, busca abrangente, documentos/PDF visual, Saúde/Educação e indicadores ainda carecem de testes de domínio e homologação (`QA-01/02`).
 - O diretório local não versionado `docs/formatacoes` contém seis PDFs oficiais/28 páginas, inclusive exemplos preenchidos com dados reais e um PIA escaneado sem camada de texto. Em 26/08/2026 houve autorização explícita para inspeção local e sanitizada de estrutura/campos; nenhum valor foi transcrito e o resultado está em [`docs/document-field-matrix.md`](docs/document-field-matrix.md). Os originais e renderizações não podem ser copiados, versionados nem usados em teste/prompt/CI; sanitização, retenção e eventual descarte continuam dependentes de `LGPD-01/02/03`.
 
 **Regra de lançamento:** não inserir dados reais antes de concluir o marco P0, inclusive o corte bloqueante de capacidade/continuidade de `ARQ-07`, testar restauração integral e aprovar formalmente o go-live.
@@ -224,6 +252,7 @@ Transformar a POC em um sistema de produção seguro e auditável que:
   - Aceite: não existe URL pública permanente; acesso negado é testado; foto continua disponível nos fluxos autorizados e no PIA.
 
 - [ ] **CAD-04 — Criar ficha unificada e passagem de caso** (P1, G; depende de `ACO-01/03`, `SEG-02/03` e módulos canônicos)
+  - Corte `PROT-01B`: reunir na ficha apenas fatos já canônicos (ingresso, situação, agenda e documentos demonstrativos), com fonte/autoria/data; Saúde/Educação em prévia visual não são fatos persistidos. A tarefa completa continua aberta até os módulos e a passagem de caso estarem funcionais.
   - Centralizar na ficha do acolhido: resumo atual, situação e desde quando, casa/local interno se `DEC-01` aprovar, responsáveis, pendências/prazos, últimos fatos e linha do tempo unificada.
   - Organizar abas de Ingresso, Família, Saúde, Educação, Atendimentos/Encaminhamentos, Agenda, Documentos/Anexos e Histórico, sem duplicar fatos entre módulos.
   - Para cada documento, mostrar tipo, título/número, status, versão, data, responsável, localização lógica, pendência e última atualização. Nunca expor caminho físico, chave de object storage ou URL permanente.
@@ -344,6 +373,7 @@ Transformar a POC em um sistema de produção seguro e auditável que:
   - Aceite: cenários com 1, 2, 3 e 4 identificações geram PDFs legíveis, preservam o snapshot após alteração do perfil e não alegam assinatura ou validade jurídica.
 
 - [ ] **DOC-04 — Unificar metadados, UX e templates dos cinco documentos** (P1, G; primeiro corte depende da v0 de `DEC-06C`; homologação posterior em `DEC-06`)
+  - Corte `PROT-01C`: reaproveitar rascunhos/telas/PDFs da POC, acrescentar o tipo e os campos faltantes para demonstração com dados fictícios e identificar claramente que não há emissão oficial. Concluir `DOC-04` e emitir documentos reais ainda depende do ciclo seguro de `DOC-05/06`, testes visuais e homologação documental.
   - Centralizar destinatário, profissionais identificados, numeração, situação (`rascunho`, `finalizado`, `cancelado`), versão e emissão.
   - Criar componentes Blade reutilizáveis de cabeçalho, destinatário, identificação profissional, rodapé e paginação.
   - Atender exatamente os cinco tipos aprovados em `DEC-06`: PIA, Relatório de visita técnica, Parecer do acolhido, Ficha de ingresso e Termo de Recebimento/Entrega de documentos e pertences pessoais. Não criar Informação, Ofício genérico, Relatório Técnico genérico ou Ofício de encaminhamento do PIA como tipos funcionais.
@@ -711,6 +741,7 @@ Manter **Laravel + React/Inertia como monólito modular** nesta fase. A stack at
   - Aceite: relatório de carga registra limites, otimizações e próximo gatilho de escala sem tratar cache amplo, réplica no mesmo nó ou Swarm single-node como alta disponibilidade.
 
 - [ ] **BE-01 — Entregar busca global e contextual autorizada** (P1, G; corte funcional do Marco 2)
+  - Corte `PROT-01B`: partir da busca da POC e localizar, no servidor, nome/processo e metadados de documento/fato já estruturados, agrupados pela ficha; não prometer busca em texto narrativo ou áreas que ainda são prévia. `BE-01` completa continua aberta até cobrir os módulos canônicos e todos os testes de autorização/escala abaixo.
   - Agenda deve consultar somente o intervalo visível; seletores de acolhidos precisam busca remota/paginada.
   - Criar busca global e contextual no PostgreSQL, normalizada para acentos e com índices apropriados, por nome, identificador autorizado, processo, tipo/título/número de documento, metadados e campos estruturados relevantes.
   - Aplicar autorização e sensibilidade no servidor **antes** de produzir resultados, totais e snippets. A fase inicial não indexa nem pesquisa o corpo narrativo sensível; futura busca em corpo exige finalidade aprovada, permissão específica, minimização e reavaliação de risco.
@@ -769,10 +800,11 @@ Manter **Laravel + React/Inertia como monólito modular** nesta fase. A stack at
   - PDF visual/regressivo: foto, destinatário, 1–4 identificações profissionais sem alegação de assinatura, múltiplas páginas e caracteres portugueses.
   - Aceite: CI bloqueia merge em falha e cenários P0/P1 têm testes negativos e positivos.
 
-- [ ] **QA-02 — Homologar com usuários usando cenários reais anonimizados** (P1, M)
+- [ ] **QA-02 — Homologar com usuários usando cenários sintéticos representativos** (P1, M)
   - Sessões separadas com coordenação, serviço social, psicologia, pedagogia/educação e saúde.
   - Registrar evidência, problema, severidade e aceite por fluxo.
-  - Aceite: representantes aprovam ficha, status, Saúde, Educação, documentos e informativo anual.
+  - Em `PROT-01E/01F` e nos testes práticos posteriores, usar somente pessoas, casos, fotos, documentos e situações fictícias; anonimização informal de um caso real não o transforma em fixture permitida. Uso posterior de dados reais exige os gates de LGPD, segurança, implantação e go-live.
+  - Aceite: representantes comentam o vídeo e depois exercitam a jornada do protótipo, registrando o que precisa mudar; a aprovação final de ficha, status, Saúde, Educação, documentos e informativo anual ocorre após implementação funcional e novos testes.
 
 ### Definição de pronto para qualquer tarefa
 
@@ -791,18 +823,20 @@ Manter **Laravel + React/Inertia como monólito modular** nesta fase. A stack at
 
 `DEC-03` e `DEC-09` foram concluídas em 16/09/2026. Permanecem abertas `DEC-01` somente para o histórico entre casas, `DEC-06` para homologação definitiva das técnicas, `DEC-08` para ADR/PoC/governança Google e `DEC-10` para plataformas, quiet hours, fallback e lifecycle dos dispositivos. `LGPD-01/02/03`, `SEG-07`, `ARQ-07` e `OPS-02` continuam gates humanos/operacionais para dados reais. A contratação futura do auto backup da Contabo está decidida, mas não equivale a serviço ativo, cópia externa independente ou restore comprovado.
 
-### Próximos incrementos de código com dados exclusivamente sintéticos
+### Próximos incrementos para o protótipo, com dados exclusivamente sintéticos
 
-1. **Consolidar e publicar a fundação já validada:** revisar o diff completo de `ARQ-01B/ARQ-06A`, executar gates finais e publicar sem misturar novo domínio.
-2. **Autorização e auditoria mínimas:** implementar `SEG-02/03` com o corte mínimo de correlation ID, idempotência/outbox de `BE-02`. Isso entrega Policies por recurso/ação, consulta read-only da auditoria funcional pela administradora, autoria/data para técnicas e trilha append-only antes de novos módulos.
-3. **Identidade forte:** implementar `IAM-02` junto do restante de `SEG-01`, mantendo `IAM-03` para gestão de contas após Policies/auditoria mínimas.
-4. **Arquivos privados:** executar `ARQ-02/SEG-05` após decisão de fornecedor, região, DPA/saída e retenção mínima. Não migrar arquivo real neste corte.
-5. **Filas e operação reproduzível:** implementar `ARQ-04`, concluir o corte necessário de `ARQ-03`, `BE-02`, `OPS-01` e fundações de `OPS-02`, mantendo PostgreSQL/outbox como fonte durável.
-6. **Núcleo de acolhimento:** implementar `ACO-01/02/03` conforme `DEC-01A`; a decisão restante sobre casas não bloqueia episódios, evasão, internação, retorno e desacolhimento.
-7. **Ficha, busca e agenda:** implementar `CAD-01/02/04`, primeiro corte de `BE-01` e `AGD-01/02`, usando obrigatoriedade provisória de `DEC-06C` e histórico/auditoria já disponíveis. `CAD-03` depende do storage privado.
-8. **Documentos:** implementar `DOC-01/02/03/04/05/06` em cortes pequenos, com cinco tipos, destinatário estruturado, numeração segura, versão final imutável e rodapé de identificação sem assinatura eletrônica/digital.
-9. **Registros contabilizáveis:** implementar `ATE-01/02`, Saúde e Educação; depois `BI-01/02/03` sobre a taxonomia v0 aprovada em `DEC-03`.
-10. **Gmail e PWA por último:** somente após os gates anteriores, executar `EML-01/02/03/04/05` e `PWA-01/02`; proposta de e-mail nunca cria compromisso antes da revisão humana definida em `DEC-09`.
+1. **`PROT-01A` — preparar o que já existe:** conferir o estado real da branch e da POC, criar jornada/dados fictícios, ambiente isolado, contas TOTP e smoke test móvel. Não habilitar foto/anexo público; executar corte mínimo privado de `ARQ-02/SEG-05` antes de demonstrar retrato no PIA. `SEG-02A/03A` e `IAM-02A` são fundações reutilizadas, não motivo para reiniciar a aplicação.
+2. **`PROT-01B` — ficha e localização:** `ACO-01/02/03` + `CAD-01` + primeiro corte de `BE-01/CAD-04`. A técnica cria/acha o acolhido, vê escola e órgão/pessoa condutora, encontra informação/documento sem procurar em pastas e distingue acolhimento, evasão, internação, retorno e desacolhimento.
+3. **`PROT-01C` — calendário e documentos:** começar por `AGD-01/02` sobre a agenda existente; depois cortes de `DOC-01/02/03/04` que tornam os cinco formulários/PDFs demonstráveis com menos digitação, destinatário, foto privada quando segura e identificação profissional flexível. Documento continua demonstrativo até `DOC-05/06` e demais gates de emissão oficial.
+4. **`PROT-01D` — prévias visuais, sem falsa persistência:** apresentar à equipe os fluxos de Saúde, Educação e informativo anual baseados em `SAU-*`, `EDU-*`, `ATE-*` e `BI-*`, marcados como prévia. Coletar prioridade, rótulos e campos antes de construir o modelo completo; dado sensível sexual/reprodutivo não recebe permissão inferida.
+5. **`PROT-01E` — vídeo de 5–10 minutos:** capturar com Playwright da versão fixada, narrar em linguagem simples e adicionar legendas, destaques e música suave licenciada em volume que preserve a voz. Mostrar desktop/celular, cinco documentos e prévias claramente rotuladas; revisar segurança e compartilhar privadamente.
+6. **`PROT-01F` — retorno das técnicas:** colher comentários por fluxo, fazer sessão de dúvidas se necessário, registrar pedidos em `QA-02/DEC-06` e estimar alterações de escopo/prazo para aprovação. Vídeo não substitui teste prático nem conclui tarefa funcional.
+
+### Após a apresentação, sem perder os bloqueadores de produção
+
+7. Implementar as fatias funcionais aceitas de `ATE-01/02`, `SAU-01/02/03/04/05`, `EDU-01/02/03` e `BI-01/02/03`; relatório anual só usa fatos estruturados realizados, nunca evento agendado ou texto livre como única fonte.
+8. Completar `IAM-02B/IAM-03`, `SEG-02/03/04/05/06/07`, `ARQ-01/02/03/04/06/07`, `DOC-05/06`, `BE-02`, `OPS-01/02` e `LGPD-01/02/03` conforme dependências e gates de dados reais. Testar restore, PDF visual, autorização e fluxo ponta a ponta antes de produção; o protótipo não os dispensa.
+9. Priorizar Gmail e PWA (`DEC-08/10`, `EML-*`, `PWA-*`) após validar com o cliente a rotina técnica e o escopo aprovado. Proposta de prazo extraída de e-mail nunca cria compromisso antes de revisão humana (`DEC-09`).
 
 `ARQ-01C` não é o próximo corte local: fechar `NOT NULL` somente após rollout, provisionamento, dry-run e reconciliação comprovados no ambiente-alvo.
 
