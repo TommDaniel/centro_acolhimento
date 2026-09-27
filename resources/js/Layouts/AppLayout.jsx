@@ -137,7 +137,7 @@ export default function AppLayout({ titulo, children }) {
     const isAdmin = Boolean(usuario?.is_admin);
     const [menuAberto, setMenuAberto] = useState(false);
     const [anchorUsuario, setAnchorUsuario] = useState(null);
-    const [busca, setBusca] = useState(props.q ?? '');
+    const [busca, setBusca] = useState('');
     const [flashAberto, setFlashAberto] = useState(false);
 
     useEffect(() => {
@@ -146,7 +146,9 @@ export default function AppLayout({ titulo, children }) {
 
     const enviarBusca = (e) => {
         e.preventDefault();
-        if (busca.trim()) router.get(route('busca'), { q: busca.trim() });
+        if (busca.trim()) {
+            router.post(route('busca.search'), { q: busca.trim() }, { preserveState: true });
+        }
     };
 
     return (

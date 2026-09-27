@@ -8,12 +8,19 @@ import CriancaCard from '@/Components/CriancaCard';
 import EmptyState from '@/Components/EmptyState';
 import Paginacao from '@/Components/Paginacao';
 
-export default function Busca({ q, criancas }) {
-    const [valor, setValor] = useState(q ?? '');
+export default function Busca({ criancas }) {
+    const [valor, setValor] = useState('');
 
     const enviar = (e) => {
         e.preventDefault();
-        router.get(route('busca'), { q: valor.trim() }, { preserveState: true });
+        const termo = valor.trim();
+
+        if (termo === '') {
+            router.get(route('busca'), {}, { replace: true });
+            return;
+        }
+
+        router.post(route('busca.search'), { q: termo }, { preserveState: true });
     };
 
     const extras = (crianca) => (
@@ -94,7 +101,7 @@ export default function Busca({ q, criancas }) {
             {criancas !== null && criancas.data.length > 0 && (
                 <>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                        {criancas.total} resultado(s) para “{q}”
+                        {criancas.total} resultado(s) encontrado(s)
                     </Typography>
                     <Stack spacing={1.5}>
                         {criancas.data.map((crianca, i) => (

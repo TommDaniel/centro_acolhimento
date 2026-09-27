@@ -18,7 +18,14 @@ Route::redirect('/', '/dashboard');
 
 Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/busca', [SearchController::class, 'index'])->name('busca');
+    Route::get('/busca/{searchId?}', [SearchController::class, 'index'])
+        ->block(30, 10)
+        ->middleware('sensitive.no-store')
+        ->name('busca');
+    Route::post('/busca', [SearchController::class, 'store'])
+        ->block(30, 10)
+        ->middleware('sensitive.no-store')
+        ->name('busca.search');
 
     // Agenda
     Route::get('agenda', [EventoController::class, 'index'])->name('agenda.index');

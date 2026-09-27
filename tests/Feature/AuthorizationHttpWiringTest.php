@@ -182,8 +182,14 @@ class AuthorizationHttpWiringTest extends TestCase
                 ->assertRedirect(route('agenda.index'));
             $this->assertTrue($event->fresh()->concluido);
 
+            $searchSubmission = $this->actingAsWithVerifiedMfa($activeUser)
+                ->post(route('busca.search'), ['q' => $childName]);
+            $searchSubmission->assertStatus(303);
+            $searchId = basename((string) parse_url((string) $searchSubmission->headers->get('Location'), PHP_URL_PATH));
+            $this->assertMatchesRegularExpression('/\A[a-zA-Z0-9]{64}\z/', $searchId);
+
             $this->actingAsWithVerifiedMfa($activeUser)
-                ->get(route('busca', ['q' => $childName]))
+                ->get(route('busca', ['searchId' => $searchId]))
                 ->assertOk();
         }
 
