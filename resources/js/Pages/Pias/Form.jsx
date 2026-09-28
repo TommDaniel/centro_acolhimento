@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import {
-    Alert, Box, Button, Card, Chip, FormControlLabel, IconButton, Stack, Switch, TextField, Typography,
+    Alert, Box, Button, Card, FormControlLabel, Stack, Switch, TextField, Typography,
 } from '@mui/material';
-import { Delete as DeleteIcon, UploadFile as UploadIcon } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
 import CriancaSelect from '@/Components/CriancaSelect';
@@ -83,54 +82,14 @@ export default function Form({ pia, criancas, criancaId }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.data.crianca_id]);
 
-    const [anexos, setAnexos] = useState([]);
-
-    const adicionarAnexos = (files) => {
-        setAnexos((prev) => [
-            ...prev,
-            ...Array.from(files).map((file) => ({ file, descricao: '' })),
-        ]);
-    };
-
-    const removerAnexo = (indice) => {
-        setAnexos((prev) => prev.filter((_, i) => i !== indice));
-    };
-
-    const atualizarDescricaoAnexo = (indice, descricao) => {
-        setAnexos((prev) => prev.map((a, i) => (i === indice ? { ...a, descricao } : a)));
-    };
-
-    const erroAnexos = Object.keys(form.errors)
-        .filter((k) => k.startsWith('anexos'))
-        .map((k) => form.errors[k])[0];
-
     const enviar = (e) => {
         e.preventDefault();
 
-        const dados = new FormData();
-        Object.entries(form.data).forEach(([chave, valor]) => {
-            if (valor !== undefined && valor !== null) {
-                dados.append(chave, typeof valor === 'boolean' ? (valor ? '1' : '0') : valor);
-            }
-        });
-
-        anexos.forEach((anexo, i) => {
-            dados.append(`anexos[${i}]`, anexo.file);
-            if (anexo.descricao) {
-                dados.append(`anexos_descricao[${i}]`, anexo.descricao);
-            }
-        });
-
         if (editando) {
-            form.post(route('pias.update', pia.id), {
-                data: dados,
-                forceFormData: true,
-            });
+            form.transform((dados) => ({ ...dados, _method: 'put' }));
+            form.post(route('pias.update', pia.id));
         } else {
-            form.post(route('pias.store'), {
-                data: dados,
-                forceFormData: true,
-            });
+            form.post(route('pias.store'));
         }
     };
 
@@ -300,59 +259,10 @@ export default function Form({ pia, criancas, criancaId }) {
                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
                             Anexos
                         </Typography>
-                        <Stack spacing={2}>
-                            <Alert severity="info" sx={{ borderRadius: 2 }}>
-                                Você pode anexar assinaturas, documentos ou outros arquivos ao PIA. Os arquivos ficam
-                                vinculados a este documento.
-                            </Alert>
-
-                            <Box>
-                                <Button component="label" variant="outlined" startIcon={<UploadIcon />}>
-                                    Selecionar arquivos
-                                    <input
-                                        hidden
-                                        type="file"
-                                        multiple
-                                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                                        onChange={(e) => {
-                                            adicionarAnexos(e.target.files ?? []);
-                                            e.target.value = '';
-                                        }}
-                                    />
-                                </Button>
-                            </Box>
-
-                            {anexos.length > 0 && (
-                                <Stack spacing={1.5}>
-                                    {anexos.map((anexo, i) => (
-                                        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                            <Chip
-                                                size="small"
-                                                variant="outlined"
-                                                label={anexo.file.name}
-                                                sx={{ maxWidth: { xs: 140, sm: 260 } }}
-                                            />
-                                            <TextField
-                                                size="small"
-                                                placeholder="Descrição (opcional)"
-                                                value={anexo.descricao}
-                                                onChange={(e) => atualizarDescricaoAnexo(i, e.target.value)}
-                                                sx={{ flex: 1 }}
-                                            />
-                                            <IconButton size="small" color="error" onClick={() => removerAnexo(i)}>
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
-                                        </Box>
-                                    ))}
-                                </Stack>
-                            )}
-
-                            {erroAnexos && (
-                                <Typography variant="caption" color="error">
-                                    {erroAnexos}
-                                </Typography>
-                            )}
-                        </Stack>
+                        <Alert severity="info" sx={{ borderRadius: 2 }}>
+                            O envio e o download de anexos estão temporariamente desativados até a adoção de
+                            armazenamento privado durável e varredura antimalware.
+                        </Alert>
                     </Card>
 
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>

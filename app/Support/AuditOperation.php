@@ -10,6 +10,7 @@ class AuditOperation
         'busca' => 'search.view',
         'agenda.concluido' => 'agenda.complete',
         'criancas.documentos.store' => 'child_document.create',
+        'criancas.portrait' => 'child_portrait.view',
         'criancas.familiares.store' => 'family_member.create',
         'documentos.destroy' => 'child_document.delete',
         'familiares.destroy' => 'family_member.delete',

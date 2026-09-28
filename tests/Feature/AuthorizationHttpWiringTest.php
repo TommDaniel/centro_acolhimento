@@ -129,7 +129,7 @@ class AuthorizationHttpWiringTest extends TestCase
                 ->post(route('criancas.documentos.store', $child), [
                     'anexos' => [UploadedFile::fake()->create('documento-ficticio-'.$suffix.'.pdf', 10, 'application/pdf')],
                 ])
-                ->assertSessionHasNoErrors();
+                ->assertStatus(423);
 
             $this->actingAsWithVerifiedMfa($activeUser)
                 ->post(route('criancas.familiares.store', $child), [
@@ -193,7 +193,7 @@ class AuthorizationHttpWiringTest extends TestCase
                 ->assertOk();
         }
 
-        $this->assertSame(2, CriancaDocumento::query()->count());
+        $this->assertSame(0, CriancaDocumento::query()->count());
         $this->assertSame(2, Familiar::query()->count());
         $this->assertSame(2, Pia::query()->count());
         $this->assertSame(2, VisitaTecnica::query()->count());

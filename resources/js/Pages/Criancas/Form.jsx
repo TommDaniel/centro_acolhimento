@@ -140,8 +140,11 @@ export default function Form({ crianca }) {
                             <Box>
                                 <Button component="label" variant="outlined" startIcon={<FotoIcon />}>
                                     {fotoAtual ? 'Trocar foto' : 'Escolher foto'}
-                                    <input hidden type="file" accept="image/*" onChange={aoSelecionarFoto} />
+                                    <input hidden type="file" accept="image/jpeg,image/png" onChange={aoSelecionarFoto} />
                                 </Button>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                    Opcional. JPEG ou PNG, até 4 MB.
+                                </Typography>
                                 {form.errors.foto && (
                                     <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
                                         {form.errors.foto}

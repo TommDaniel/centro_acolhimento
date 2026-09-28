@@ -20,6 +20,10 @@
     table.ident { width: 100%; border-collapse: collapse; margin-top: 4px; }
     table.ident td { border: 1px solid #d1d5db; padding: 4px 7px; vertical-align: top; }
     table.ident td.rotulo { width: 32%; background: #f9fafb; font-weight: bold; }
+    table.ident-wrap { width: 100%; border-collapse: collapse; }
+    table.ident-wrap td.dados { padding: 0; vertical-align: top; }
+    table.ident-wrap td.retrato { width: 100px; padding: 4px 0 0 12px; vertical-align: top; }
+    table.ident-wrap td.retrato img { display: block; }
     table.fam { width: 100%; border-collapse: collapse; margin-top: 4px; }
     table.fam th { border: 1px solid #d1d5db; background: #f9fafb; padding: 4px 7px; text-align: left; font-size: 10px; text-transform: uppercase; }
     table.fam td { border: 1px solid #d1d5db; padding: 4px 7px; vertical-align: top; }
@@ -57,22 +61,33 @@
         </tr>
     </table>
 
-    @if($pia->crianca->foto && file_exists(storage_path('app/public/'.$pia->crianca->foto)))
-        <img src="{{ storage_path('app/public/'.$pia->crianca->foto) }}" style="width:90px; float:right; margin:0 0 8px 12px;">
-    @endif
-
     <h2 class="secao">{{ $n++ }}. Dados de identificação</h2>
-    <table class="ident">
-        <tbody>
-            @foreach($pia->crianca->identificacao() as $rotulo => $valor)
-                @if(filled($valor))
-                    <tr>
-                        <td class="rotulo">{{ $rotulo }}</td>
-                        <td>{{ $valor }}</td>
-                    </tr>
-                @endif
-            @endforeach
-        </tbody>
+    <table class="ident-wrap">
+        <tr>
+            <td class="dados">
+                <table class="ident">
+                    <tbody>
+                        @foreach($pia->crianca->identificacao() as $rotulo => $valor)
+                            @if(filled($valor))
+                                <tr>
+                                    <td class="rotulo">{{ $rotulo }}</td>
+                                    <td>{{ $valor }}</td>
+                                </tr>
+                            @endif
+                        @endforeach
+                    </tbody>
+                </table>
+            </td>
+            @if($portrait)
+                <td class="retrato">
+                    <img
+                        src="{{ $portrait['data_uri'] }}"
+                        alt="Retrato privado"
+                        style="width: {{ $portrait['width'] }}px; height: {{ $portrait['height'] }}px;"
+                    >
+                </td>
+            @endif
+        </tr>
     </table>
 
     @if($filiacao->isNotEmpty())
@@ -144,19 +159,6 @@
         <div class="texto">{!! nl2br(e($texto)) !!}</div>
     @endforeach
 
-    @if($pia->anexos && $pia->anexos->isNotEmpty())
-        <h2 class="secao">{{ $n++ }}. Anexos</h2>
-        <ul>
-            @foreach($pia->anexos as $anexo)
-                <li>
-                    {{ $anexo->nome_original }}
-                    @if(filled($anexo->descricao))
-                        — {{ $anexo->descricao }}
-                    @endif
-                </li>
-            @endforeach
-        </ul>
-    @endif
 </main>
 </body>
 </html>

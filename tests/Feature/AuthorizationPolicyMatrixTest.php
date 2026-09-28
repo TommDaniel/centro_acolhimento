@@ -91,6 +91,23 @@ class AuthorizationPolicyMatrixTest extends TestCase
         ];
     }
 
+    public function test_portrait_policy_requires_an_active_user_in_the_child_organization(): void
+    {
+        $technical = User::factory()->create();
+        $administrator = User::factory()->administrator()->create();
+        $inactive = User::factory()->inactive()->create();
+        $child = Crianca::query()->create(['nome_completo' => 'Acolhido Matriz de Retrato Fictício']);
+        $foreignChild = $child->replicate();
+        $foreignChild->organizacao_id = $child->organizacao_id + 999;
+
+        $this->assertTrue(Gate::forUser($technical)->allows('viewPortrait', $child));
+        $this->assertTrue(Gate::forUser($administrator)->allows('viewPortrait', $child));
+        $this->assertFalse(Gate::forUser($inactive)->allows('viewPortrait', $child));
+        $this->assertFalse(Gate::forUser(null)->allows('viewPortrait', $child));
+        $this->assertFalse(Gate::forUser($technical)->allows('viewPortrait', $foreignChild));
+        $this->assertFalse(Gate::forUser($administrator)->allows('viewPortrait', $foreignChild));
+    }
+
     public function test_sector_account_and_audit_policy_matrix(): void
     {
         $technical = User::factory()->create();

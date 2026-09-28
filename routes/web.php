@@ -37,6 +37,9 @@ Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(f
 
     // Cadastro de crianças/adolescentes + anexos
     Route::resource('criancas', CriancaController::class);
+    Route::get('criancas/{crianca}/portrait', [CriancaController::class, 'portrait'])
+        ->middleware('sensitive.no-store')
+        ->name('criancas.portrait');
     Route::post('criancas/{crianca}/documentos', [CriancaController::class, 'storeDocumento'])
         ->name('criancas.documentos.store');
     Route::delete('documentos/{documento}', [CriancaController::class, 'destroyDocumento'])
@@ -48,7 +51,9 @@ Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(f
 
     // Documentos
     Route::resource('pias', PiaController::class);
-    Route::get('pias/{pia}/pdf', [PiaController::class, 'pdf'])->name('pias.pdf');
+    Route::get('pias/{pia}/pdf', [PiaController::class, 'pdf'])
+        ->middleware('sensitive.no-store')
+        ->name('pias.pdf');
     Route::delete('pias/anexos/{anexo}', [PiaController::class, 'destroyAnexo'])->name('pias.anexos.destroy');
 
     Route::resource('visitas-tecnicas', VisitaTecnicaController::class)

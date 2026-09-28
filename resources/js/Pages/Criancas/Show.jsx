@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
-    Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent,
+    Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent,
     DialogTitle, Divider, IconButton, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import {
     Add as AddIcon,
-    Download as DownloadIcon,
     Edit as EditIcon,
     PictureAsPdf as PdfIcon,
-    UploadFile as UploadIcon,
     Visibility as VerIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
@@ -113,8 +111,6 @@ export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
 
     const [dialogFamiliar, setDialogFamiliar] = useState(false);
 
-    const upload = useForm({ anexos: [] });
-
     const formFamiliar = useForm({
         tipo: '',
         nome: '',
@@ -134,19 +130,6 @@ export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
         error: Boolean(formFamiliar.errors[nome]),
         helperText: formFamiliar.errors[nome],
     });
-
-    const erroAnexos = Object.keys(upload.errors)
-        .filter((k) => k.startsWith('anexos'))
-        .map((k) => upload.errors[k])[0];
-
-    const enviarAnexos = (e) => {
-        e.preventDefault();
-        upload.post(route('criancas.documentos.store', crianca.id), {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => upload.reset(),
-        });
-    };
 
     const enviarFamiliar = (e) => {
         e.preventDefault();
@@ -360,76 +343,12 @@ export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
                 <Card>
                     <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                         <Typography variant="h6" sx={{ mb: 2 }}>
-                            Documentos anexados
+                            Anexos
                         </Typography>
-
-                        <Box component="form" onSubmit={enviarAnexos} sx={{ mb: 2 }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
-                                <Button component="label" variant="outlined" startIcon={<UploadIcon />}>
-                                    Selecionar arquivos
-                                    <input
-                                        hidden
-                                        type="file"
-                                        multiple
-                                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                                        onChange={(e) => {
-                                            upload.setData('anexos', Array.from(e.target.files ?? []));
-                                            e.target.value = '';
-                                        }}
-                                    />
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    variant="contained"
-                                    disabled={upload.processing || upload.data.anexos.length === 0}
-                                >
-                                    Enviar
-                                </Button>
-                            </Stack>
-                            {upload.data.anexos.length > 0 && (
-                                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                                    {upload.data.anexos.map((arquivo) => (
-                                        <Chip key={arquivo.name} size="small" variant="outlined" label={arquivo.name} />
-                                    ))}
-                                </Stack>
-                            )}
-                            {erroAnexos && (
-                                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                                    {erroAnexos}
-                                </Typography>
-                            )}
-                        </Box>
-
-                        {(crianca.documentos ?? []).length === 0 ? (
-                            <EmptyState titulo="Nenhum anexo." />
-                        ) : (
-                            <Stack divider={<Divider />} spacing={0}>
-                                {crianca.documentos.map((doc) => (
-                                    <Box
-                                        key={doc.id}
-                                        sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.25 }}
-                                    >
-                                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                                            <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-                                                {doc.nome_original}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                por {doc.uploader?.name ?? '—'} em {fmtDataHora(doc.created_at)}
-                                            </Typography>
-                                        </Box>
-                                        <IconButton
-                                            component="a"
-                                            href={doc.url}
-                                            target="_blank"
-                                            size="small"
-                                            aria-label={`Baixar ${doc.nome_original}`}
-                                        >
-                                            <DownloadIcon fontSize="small" />
-                                        </IconButton>
-                                    </Box>
-                                ))}
-                            </Stack>
-                        )}
+                        <Alert severity="info">
+                            O envio e o download de anexos estão temporariamente desativados até a adoção de
+                            armazenamento privado durável e varredura antimalware.
+                        </Alert>
                     </CardContent>
                 </Card>
 

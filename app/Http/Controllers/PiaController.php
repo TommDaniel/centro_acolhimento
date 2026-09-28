@@ -3,17 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EmiteOficio;
+use App\Http\Requests\UpsertPiaRequest;
 use App\Models\Crianca;
 use App\Models\Pia;
 use App\Models\PiaAnexo;
+use App\Services\AuditRecorder;
+use App\Services\PrivatePortraitStorage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PiaController extends Controller
 {
     use EmiteOficio;
+
+    public function __construct(
+        private PrivatePortraitStorage $privatePortraits,
+        private AuditRecorder $audit,
+    ) {}
 
     public function index()
     {
@@ -40,17 +47,16 @@ class PiaController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(UpsertPiaRequest $request)
     {
         $this->authorize('create', Pia::class);
 
-        $dados = $this->validar($request);
+        $dados = $request->validated();
         $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
         $dados['numero_oficio'] = $this->numeroOficio($request, 'pias');
 
         $pia = Pia::create($dados);
-        $this->processarAnexos($request, $pia);
 
         return redirect()->route('pias.show', $pia)
             ->with('sucesso', 'PIA registrado com sucesso.');
@@ -60,7 +66,8 @@ class PiaController extends Controller
     {
         $this->authorize('view', $pia);
 
-        $pia->load('crianca.familiares', 'criador', 'setor', 'anexos.uploader');
+        $pia->load('crianca.familiares', 'criador', 'setor');
+        $this->withPortraitUrl($pia->crianca);
 
         return Inertia::render('Pias/Show', [
             'pia' => $pia,
@@ -84,12 +91,11 @@ class PiaController extends Controller
         ]);
     }
 
-    public function update(Request $request, Pia $pia)
+    public function update(UpsertPiaRequest $request, Pia $pia)
     {
         $this->authorize('update', $pia);
 
-        $pia->update($this->validar($request));
-        $this->processarAnexos($request, $pia);
+        $pia->update($request->validated());
 
         return redirect()->route('pias.show', $pia)
             ->with('sucesso', 'PIA atualizado com sucesso.');
@@ -109,66 +115,57 @@ class PiaController extends Controller
         abort(405, 'Anexos assistenciais não podem ser excluídos fisicamente.');
     }
 
-    public function pdf(Pia $pia)
+    public function pdf(Request $request, Pia $pia)
     {
         $this->authorize('download', $pia);
 
-        $pia->load('crianca.familiares', 'criador', 'setor', 'anexos');
+        $pia->load('crianca.familiares', 'criador', 'setor');
+        $portrait = $this->privatePortraits->read($pia->crianca->foto);
+        $portraitForPdf = $portrait === null ? null : $this->portraitForPdf($portrait);
 
-        $arquivo = 'pia-'.Str::slug($pia->crianca->nome_completo).'-'.$pia->created_at->format('Ymd').'.pdf';
+        $arquivo = 'pia-'.$pia->getKey().'-'.$pia->created_at->format('Ymd').'.pdf';
 
-        return Pdf::loadView('pdf.pia', [
+        $response = Pdf::loadView('pdf.pia', [
             'pia' => $pia,
             'local_oficio' => self::LOCAL_OFICIO,
             'data_extenso' => dataPorExtensoPtBr($pia->created_at),
+            'portrait' => $portraitForPdf,
         ])
             ->setPaper('a4')
             ->stream($arquivo);
+
+        $response->headers->set('Cache-Control', 'no-store, private');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+
+        $this->audit->record('pia.pdf_view', 'success', $request->user(), $pia);
+
+        return $response;
     }
 
-    private function processarAnexos(Request $request, Pia $pia): void
+    private function withPortraitUrl(Crianca $crianca): void
     {
-        $request->validate([
-            'anexos' => ['nullable', 'array', 'max:10'],
-            'anexos.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,doc,docx'],
-            'anexos_descricao' => ['nullable', 'array'],
-            'anexos_descricao.*' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        foreach ($request->file('anexos', []) as $indice => $arquivo) {
-            $pia->anexos()->create([
-                'nome_original' => $arquivo->getClientOriginalName(),
-                'descricao' => $request->input("anexos_descricao.$indice"),
-                'path' => $arquivo->store('anexos/pias/'.$pia->id, 'public'),
-                'mime' => $arquivo->getClientMimeType(),
-                'tamanho' => $arquivo->getSize(),
-                'uploaded_by' => $request->user()->id,
-            ]);
-        }
+        $crianca->setAttribute(
+            'foto_url',
+            $this->privatePortraits->hasValid($crianca->foto)
+                ? route('criancas.portrait', $crianca)
+                : null,
+        );
     }
 
-    private function validar(Request $request): array
+    /**
+     * @param  array{contents: string, mime: 'image/jpeg'|'image/png', width: int, height: int}  $portrait
+     * @return array{data_uri: string, width: float, height: float}
+     */
+    private function portraitForPdf(array $portrait): array
     {
-        return $request->validate([
-            'crianca_id' => ['required', 'exists:criancas,id'],
-            'numero_oficio' => $this->regraNumeroOficio(),
-            'composicao_familiar' => ['nullable', 'string'],
-            'dados_acolhimento' => ['nullable', 'string'],
-            'acolhimento_anterior' => ['nullable', 'boolean'],
-            'acolhimento_anterior_detalhes' => ['nullable', 'string', 'required_if:acolhimento_anterior,1'],
-            'encaminhado_por' => ['nullable', 'string', 'max:255'],
-            'especificidades' => ['nullable', 'string'],
-            'informacoes_familia' => ['nullable', 'string'],
-            'saude' => ['nullable', 'string'],
-            'saude_familiares' => ['nullable', 'string'],
-            'educacao_menor' => ['nullable', 'string'],
-            'educacao_familiares' => ['nullable', 'string'],
-            'assistencia_social' => ['nullable', 'string'],
-            'assistencia_social_familiares' => ['nullable', 'string'],
-            'esporte_cultura_lazer' => ['nullable', 'string'],
-            'consideracoes_tecnicas' => ['nullable', 'string'],
-            'plano_acao' => ['nullable', 'string'],
-            'providencias_judiciario' => ['nullable', 'string'],
-        ]);
+        $scale = min(88 / $portrait['width'], 110 / $portrait['height']);
+
+        return [
+            'data_uri' => 'data:'.$portrait['mime'].';base64,'.base64_encode($portrait['contents']),
+            'width' => round($portrait['width'] * $scale, 2),
+            'height' => round($portrait['height'] * $scale, 2),
+        ];
     }
 }

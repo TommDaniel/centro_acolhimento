@@ -3,11 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'nome_completo', 'nome_social', 'data_nascimento', 'sexo', 'identidade_genero', 'cor_raca',
@@ -17,9 +17,10 @@ use Illuminate\Support\Facades\Storage;
     'endereco_familia', 'processo_numero', 'vara', 'comarca',
     'data_acolhimento', 'motivo_acolhimento', 'foto', 'status', 'observacoes',
 ])]
+#[Hidden(['foto'])]
 class Crianca extends Model
 {
-    protected $appends = ['foto_url', 'idade'];
+    protected $appends = ['idade'];
 
     protected function casts(): array
     {
@@ -27,11 +28,6 @@ class Crianca extends Model
             'data_nascimento' => 'date',
             'data_acolhimento' => 'date',
         ];
-    }
-
-    protected function fotoUrl(): Attribute
-    {
-        return Attribute::get(fn () => $this->foto ? Storage::url($this->foto) : null);
     }
 
     protected function idade(): Attribute

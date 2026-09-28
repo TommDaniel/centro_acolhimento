@@ -1,11 +1,10 @@
 import { Head, Link } from '@inertiajs/react';
 import {
-    Box, Button, Card, Chip, Divider, IconButton, Stack, Table, TableBody, TableCell,
+    Alert, Box, Button, Card, Chip, Divider, Stack, Table, TableBody, TableCell,
     TableHead, TableRow, Typography,
 } from '@mui/material';
 import {
     ArrowBack as VoltarIcon,
-    Download as DownloadIcon,
     Edit as EditarIcon,
     PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
@@ -23,7 +22,6 @@ export default function Show({ pia, secoes, identificacao, familiares }) {
     const podeAlterar = () => true;
 
     const todosFamiliares = familiares ?? [];
-    const anexos = pia.anexos ?? [];
     const filiacao = todosFamiliares.filter((f) => ['genitora', 'genitor', 'responsavel'].includes(f.tipo));
 
     return (
@@ -223,40 +221,10 @@ export default function Show({ pia, secoes, identificacao, familiares }) {
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
                         Anexos
                     </Typography>
-                    {anexos.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                            Nenhum anexo vinculado a este PIA.
-                        </Typography>
-                    ) : (
-                        <Stack divider={<Divider />} spacing={0}>
-                            {anexos.map((anexo) => (
-                                <Box
-                                    key={anexo.id}
-                                    sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.25 }}
-                                >
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                        <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-                                            {anexo.nome_original}
-                                        </Typography>
-                                        {anexo.descricao && (
-                                            <Typography variant="caption" color="text.secondary">
-                                                {anexo.descricao}
-                                            </Typography>
-                                        )}
-                                    </Box>
-                                    <IconButton
-                                        component="a"
-                                        href={anexo.url}
-                                        target="_blank"
-                                        size="small"
-                                        aria-label={`Baixar ${anexo.nome_original}`}
-                                    >
-                                        <DownloadIcon fontSize="small" />
-                                    </IconButton>
-                                </Box>
-                            ))}
-                        </Stack>
-                    )}
+                    <Alert severity="info">
+                        O envio e o download de anexos estão temporariamente desativados até a adoção de
+                        armazenamento privado durável e varredura antimalware.
+                    </Alert>
                 </Card>
 
                 <Box>

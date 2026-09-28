@@ -3,13 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateCrianca;
+use App\Actions\StorePrivatePortrait;
 use App\Actions\UpdateCrianca;
+use App\Http\Requests\UpsertCriancaRequest;
 use App\Models\Crianca;
 use App\Models\CriancaDocumento;
 use App\Models\Familiar;
 use App\Services\AuditRecorder;
+use App\Services\PrivatePortraitStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Throwable;
 
@@ -18,6 +20,8 @@ class CriancaController extends Controller
     public function __construct(
         private CreateCrianca $createCrianca,
         private UpdateCrianca $updateCrianca,
+        private StorePrivatePortrait $storePrivatePortrait,
+        private PrivatePortraitStorage $privatePortraits,
         private AuditRecorder $audit,
     ) {}
 
@@ -43,6 +47,8 @@ class CriancaController extends Controller
             ->paginate(12)
             ->withQueryString();
 
+        $criancas->getCollection()->each(fn (Crianca $crianca) => $this->withPortraitUrl($crianca));
+
         return Inertia::render('Criancas/Index', compact('criancas', 'q', 'status'));
     }
 
@@ -53,24 +59,22 @@ class CriancaController extends Controller
         return Inertia::render('Criancas/Form', ['crianca' => null]);
     }
 
-    public function store(Request $request)
+    public function store(UpsertCriancaRequest $request)
     {
         $this->authorize('create', Crianca::class);
 
-        $dados = $this->validar($request);
+        $dados = $request->safe()->except('foto');
         $storedPhoto = null;
 
         if ($request->hasFile('foto')) {
-            $storedPhoto = $request->file('foto')->store('fotos', 'public');
+            $storedPhoto = $this->storePrivatePortrait->handle($request->file('foto'));
             $dados['foto'] = $storedPhoto;
         }
 
         try {
             $crianca = $this->createCrianca->handle($dados, $request->user());
         } catch (Throwable $exception) {
-            if ($storedPhoto !== null) {
-                Storage::disk('public')->delete($storedPhoto);
-            }
+            $this->privatePortraits->deleteFailedWrite($storedPhoto);
 
             throw $exception;
         }
@@ -85,7 +89,6 @@ class CriancaController extends Controller
 
         $crianca->load([
             'criador',
-            'documentos.uploader',
             'familiares',
             'pias' => fn ($q) => $q->with('criador')->latest(),
             'visitasTecnicas' => fn ($q) => $q->with('criador')->latest('data_visita'),
@@ -98,6 +101,8 @@ class CriancaController extends Controller
         $lastChange = $crianca->updated_by === null
             ? null
             : $crianca->loadMissing('atualizador')->atualizador;
+
+        $this->withPortraitUrl($crianca);
 
         return Inertia::render('Criancas/Show', [
             'crianca' => $crianca,
@@ -113,34 +118,29 @@ class CriancaController extends Controller
     {
         $this->authorize('update', $crianca);
 
+        $this->withPortraitUrl($crianca);
+
         return Inertia::render('Criancas/Form', compact('crianca'));
     }
 
-    public function update(Request $request, Crianca $crianca)
+    public function update(UpsertCriancaRequest $request, Crianca $crianca)
     {
         $this->authorize('update', $crianca);
 
-        $dados = $this->validar($request);
-        $oldPhoto = $crianca->foto;
+        $dados = $request->safe()->except('foto');
         $storedPhoto = null;
 
         if ($request->hasFile('foto')) {
-            $storedPhoto = $request->file('foto')->store('fotos', 'public');
+            $storedPhoto = $this->storePrivatePortrait->handle($request->file('foto'));
             $dados['foto'] = $storedPhoto;
         }
 
         try {
             $this->updateCrianca->handle($crianca, $dados, $request->user());
         } catch (Throwable $exception) {
-            if ($storedPhoto !== null) {
-                Storage::disk('public')->delete($storedPhoto);
-            }
+            $this->privatePortraits->deleteFailedWrite($storedPhoto);
 
             throw $exception;
-        }
-
-        if ($storedPhoto !== null && $oldPhoto !== null) {
-            Storage::disk('public')->delete($oldPhoto);
         }
 
         return redirect()->route('criancas.show', $crianca)
@@ -159,22 +159,7 @@ class CriancaController extends Controller
         $this->authorize('update', $crianca);
         $this->authorize('create', CriancaDocumento::class);
 
-        $request->validate([
-            'anexos' => ['required', 'array', 'max:10'],
-            'anexos.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,doc,docx'],
-        ]);
-
-        foreach ($request->file('anexos', []) as $arquivo) {
-            $crianca->documentos()->create([
-                'nome_original' => $arquivo->getClientOriginalName(),
-                'path' => $arquivo->store('documentos', 'public'),
-                'mime' => $arquivo->getClientMimeType(),
-                'tamanho' => $arquivo->getSize(),
-                'uploaded_by' => $request->user()->id,
-            ]);
-        }
-
-        return back()->with('sucesso', 'Documento(s) anexado(s) com sucesso.');
+        abort(423, 'O envio de anexos da ficha está temporariamente desativado.');
     }
 
     public function destroyDocumento(Request $request, CriancaDocumento $documento)
@@ -215,37 +200,37 @@ class CriancaController extends Controller
         abort(405, 'Vínculos familiares não podem ser excluídos fisicamente.');
     }
 
-    private function validar(Request $request): array
+    public function portrait(Request $request, Crianca $crianca)
     {
-        return $request->validate([
-            'nome_completo' => ['required', 'string', 'max:255'],
-            'nome_social' => ['nullable', 'string', 'max:255'],
-            'data_nascimento' => ['nullable', 'date'],
-            'sexo' => ['nullable', 'string', 'max:50'],
-            'identidade_genero' => ['nullable', 'string', 'max:100'],
-            'cor_raca' => ['nullable', 'string', 'max:50'],
-            'naturalidade' => ['nullable', 'string', 'max:255'],
-            'nacionalidade' => ['nullable', 'string', 'max:255'],
-            'rg' => ['nullable', 'string', 'max:50'],
-            'cpf' => ['nullable', 'string', 'max:20'],
-            'certidao_nascimento' => ['nullable', 'string', 'max:100'],
-            'rn' => ['nullable', 'string', 'max:50'],
-            'cartao_sus' => ['nullable', 'string', 'max:50'],
-            'nis' => ['nullable', 'string', 'max:50'],
-            'titulo_eleitor' => ['nullable', 'string', 'max:50'],
-            'nome_mae' => ['nullable', 'string', 'max:255'],
-            'nome_pai' => ['nullable', 'string', 'max:255'],
-            'responsavel_legal' => ['nullable', 'string', 'max:255'],
-            'contato_responsavel' => ['nullable', 'string', 'max:100'],
-            'endereco_familia' => ['nullable', 'string', 'max:255'],
-            'processo_numero' => ['nullable', 'string', 'max:100'],
-            'vara' => ['nullable', 'string', 'max:255'],
-            'comarca' => ['nullable', 'string', 'max:255'],
-            'data_acolhimento' => ['nullable', 'date'],
-            'motivo_acolhimento' => ['nullable', 'string'],
-            'foto' => ['nullable', 'image', 'max:4096'],
-            'status' => ['nullable', 'in:acolhida,desligada'],
-            'observacoes' => ['nullable', 'string'],
+        if ($request->user()->cannot('viewPortrait', $crianca)) {
+            $this->audit->record('access.denied.child_portrait.view', 'denied', $request->user());
+            $request->attributes->set('_access_denial_audited', true);
+
+            abort(403);
+        }
+
+        $portrait = $this->privatePortraits->read($crianca->foto);
+        abort_if($portrait === null, 404);
+
+        $this->audit->record('child_portrait.view', 'success', $request->user(), $crianca);
+
+        return response($portrait['contents'], 200, [
+            'Content-Type' => $portrait['mime'],
+            'Content-Disposition' => 'inline',
+            'Cache-Control' => 'no-store, private',
+            'Pragma' => 'no-cache',
+            'Referrer-Policy' => 'no-referrer',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    private function withPortraitUrl(Crianca $crianca): void
+    {
+        $crianca->setAttribute(
+            'foto_url',
+            $this->privatePortraits->hasValid($crianca->foto)
+                ? route('criancas.portrait', $crianca)
+                : null,
+        );
     }
 }
