@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { motion } from 'framer-motion';
-import { Box, Button, InputAdornment, MenuItem, TextField } from '@mui/material';
+import { Box, Button, InputAdornment, TextField } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
@@ -9,32 +8,16 @@ import CriancaCard from '@/Components/CriancaCard';
 import EmptyState from '@/Components/EmptyState';
 import Paginacao from '@/Components/Paginacao';
 
-export default function Index({ criancas, q, status }) {
-    const [busca, setBusca] = useState(q ?? '');
-    const primeiraVez = useRef(true);
+export default function Index({ criancas }) {
+    const [busca, setBusca] = useState('');
 
-    // Busca com debounce de 400ms ao digitar.
-    useEffect(() => {
-        if (primeiraVez.current) {
-            primeiraVez.current = false;
-            return;
+    const enviarBusca = (event) => {
+        event.preventDefault();
+        const termo = busca.trim();
+
+        if (termo !== '') {
+            router.post(route('busca.search'), { q: termo });
         }
-        const timer = setTimeout(() => {
-            router.get(
-                route('criancas.index'),
-                { q: busca, status },
-                { preserveState: true, replace: true },
-            );
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [busca]);
-
-    const aoMudarStatus = (e) => {
-        router.get(
-            route('criancas.index'),
-            { q: busca, status: e.target.value },
-            { preserveState: true, replace: true },
-        );
     };
 
     return (
@@ -56,6 +39,8 @@ export default function Index({ criancas, q, status }) {
             />
 
             <Box
+                component="form"
+                onSubmit={enviarBusca}
                 sx={{
                     display: 'flex', gap: 1.5, mb: { xs: 2, sm: 3 }, p: { xs: 2, sm: 3 },
                     flexDirection: { xs: 'column', sm: 'row' },
@@ -63,10 +48,11 @@ export default function Index({ criancas, q, status }) {
                 }}
             >
                 <TextField
+                    label="Buscar criança ou adolescente"
                     fullWidth
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Buscar por nome, processo ou RG..."
+                    placeholder="Nome, processo ou RG..."
                     slotProps={{
                         input: {
                             startAdornment: (
@@ -77,23 +63,20 @@ export default function Index({ criancas, q, status }) {
                         },
                     }}
                 />
-                <TextField
-                    select
-                    label="Status"
-                    value={status}
-                    onChange={aoMudarStatus}
-                    sx={{ minWidth: { xs: '100%', sm: 180 }, flexShrink: 0 }}
+                <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={busca.trim() === ''}
+                    sx={{ flexShrink: 0, width: { xs: '100%', sm: 'auto' } }}
                 >
-                    <MenuItem value="acolhida">Acolhidas</MenuItem>
-                    <MenuItem value="desligada">Desligadas</MenuItem>
-                    <MenuItem value="todas">Todas</MenuItem>
-                </TextField>
+                    Buscar
+                </Button>
             </Box>
 
             {criancas.data.length === 0 ? (
                 <EmptyState
-                    titulo="Nenhuma criança encontrada"
-                    mensagem="Ajuste a busca ou o filtro de status."
+                    titulo="Nenhum cadastro encontrado"
+                    mensagem="Registre uma nova pessoa para começar."
                 />
             ) : (
                 <Box
@@ -103,15 +86,10 @@ export default function Index({ criancas, q, status }) {
                         gap: { xs: 1.5, sm: 2 },
                     }}
                 >
-                    {criancas.data.map((crianca, i) => (
-                        <motion.div
-                            key={crianca.id}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2, delay: i * 0.04 }}
-                        >
+                    {criancas.data.map((crianca) => (
+                        <Box key={crianca.id}>
                             <CriancaCard crianca={crianca} />
-                        </motion.div>
+                        </Box>
                     ))}
                 </Box>
             )}

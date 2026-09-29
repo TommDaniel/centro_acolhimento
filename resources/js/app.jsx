@@ -15,7 +15,10 @@ import {
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 removePasswordResetFragmentFromAddressBar();
-installBackForwardCacheProtection();
+installBackForwardCacheProtection({
+    loginUrl: route('login', undefined, false),
+    logoutUrl: route('logout', undefined, false),
+});
 
 router.on('navigate', (event) => {
     protectAuthenticatedHistory(Boolean(event.detail.page.props.auth?.user));
@@ -42,7 +45,11 @@ createInertiaApp({
         ),
     setup({ el, App, props }) {
         const root = createRoot(el);
-        protectAuthenticatedHistory(Boolean(props.initialPage.props.auth?.user));
+        const canRender = protectAuthenticatedHistory(Boolean(props.initialPage.props.auth?.user));
+
+        if (!canRender) {
+            return;
+        }
 
         root.render(
             <ThemeProvider theme={theme}>

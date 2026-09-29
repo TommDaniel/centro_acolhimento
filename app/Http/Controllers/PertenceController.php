@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EmiteOficio;
-use App\Models\Crianca;
 use App\Models\Pertence;
+use App\Services\AcolhimentoProjection;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -13,6 +13,8 @@ use Inertia\Inertia;
 class PertenceController extends Controller
 {
     use EmiteOficio;
+
+    public function __construct(private AcolhimentoProjection $acolhimentoProjection) {}
 
     public function index()
     {
@@ -27,7 +29,7 @@ class PertenceController extends Controller
     {
         $this->authorize('create', Pertence::class);
 
-        $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')->get(['id', 'nome_completo']);
+        $criancas = $this->acolhimentoProjection->childrenForSelection();
 
         return Inertia::render('Pertences/Form', [
             'pertence' => null,
@@ -69,7 +71,7 @@ class PertenceController extends Controller
     {
         $this->authorize('update', $pertence);
 
-        $criancas = Crianca::orderBy('nome_completo')->get(['id', 'nome_completo']);
+        $criancas = $this->acolhimentoProjection->childrenForSelection();
 
         return Inertia::render('Pertences/Form', [
             'pertence' => $pertence,

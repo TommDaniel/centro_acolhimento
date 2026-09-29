@@ -38,6 +38,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Blocking
+    |--------------------------------------------------------------------------
+    |
+    | Every stateful request for the same session is serialized before the
+    | session is loaded. The lock store must be shared by every web worker and
+    | support atomic locks. Keep the lock lease above the web request timeout.
+    |
+    */
+
+    'block' => env('SESSION_BLOCK', true),
+
+    'block_store' => env('SESSION_BLOCK_STORE', 'database'),
+
+    'block_lock_seconds' => (int) env('SESSION_BLOCK_LOCK_SECONDS', 300),
+
+    'block_wait_seconds' => (int) env('SESSION_BLOCK_WAIT_SECONDS', 10),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Encryption
     |--------------------------------------------------------------------------
     |

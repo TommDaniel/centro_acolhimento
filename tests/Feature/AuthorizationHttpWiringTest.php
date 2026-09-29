@@ -139,7 +139,10 @@ class AuthorizationHttpWiringTest extends TestCase
                 ->assertSessionHasNoErrors();
 
             $this->actingAsWithVerifiedMfa($activeUser)
-                ->post(route('pias.store'), ['crianca_id' => $child->id])
+                ->post(route('pias.store'), [
+                    'crianca_id' => $child->id,
+                    'expected_acolhimento_id' => null,
+                ])
                 ->assertSessionHasNoErrors();
 
             $this->actingAsWithVerifiedMfa($activeUser)

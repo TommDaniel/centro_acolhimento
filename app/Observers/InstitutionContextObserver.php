@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Models\Acolhimento;
 use App\Models\Crianca;
 use App\Models\Evento;
 use App\Models\Pertence;
@@ -18,6 +19,7 @@ class InstitutionContextObserver
 {
     /** @var list<class-string<Model>> */
     private const UNIT_MODELS = [
+        Acolhimento::class,
         User::class,
         Setor::class,
         Pia::class,

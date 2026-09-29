@@ -12,6 +12,7 @@ use App\Http\Middleware\RejectClientInstitutionContext;
 use App\Http\Middleware\RejectRememberedSession;
 use App\Http\Middleware\ThrottleMfaAttempt;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -81,6 +82,18 @@ $app = Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash(['password', 'password_confirmation', 'code', 'token']);
+        $exceptions->render(function (LockTimeoutException $exception): Response {
+            return new Response(
+                'Não foi possível concluir a requisição com segurança. Tente novamente.',
+                503,
+                [
+                    'Cache-Control' => 'no-store, private',
+                    'Pragma' => 'no-cache',
+                    'Referrer-Policy' => 'no-referrer',
+                    'Retry-After' => '1',
+                ],
+            );
+        });
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );

@@ -8,17 +8,20 @@ use App\Models\Pertence;
 use App\Models\Pia;
 use App\Models\Report;
 use App\Models\VisitaTecnica;
+use App\Services\AcolhimentoProjection;
 use Carbon\CarbonImmutable;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
+    public function __construct(private AcolhimentoProjection $acolhimentoProjection) {}
+
     public function index()
     {
         $this->authorize('viewAny', Crianca::class);
 
         $totais = [
-            'criancas' => Crianca::where('status', 'acolhida')->count(),
+            'acolhimentos_em_curso' => $this->acolhimentoProjection->openPeopleCount(),
             'pias' => Pia::count(),
             'reports' => Report::count(),
             'visitas' => VisitaTecnica::count(),

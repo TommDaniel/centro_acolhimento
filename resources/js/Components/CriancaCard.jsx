@@ -30,7 +30,10 @@ export default function CriancaCard({ crianca, detalhesExtras }) {
                 </Typography>
                 {detalhesExtras}
             </Box>
-            <StatusChip status={crianca.status} />
+            <StatusChip
+                situacao={crianca.acolhimento_situacao}
+                fonte={crianca.acolhimento_fonte}
+            />
         </Box>
     );
 }

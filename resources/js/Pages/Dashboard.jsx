@@ -34,7 +34,12 @@ export default function Dashboard({ totais, recentes, proximosEventos }) {
     const primeiroNome = auth?.user?.name?.trim().split(/\s+/)[0] ?? '';
 
     const cartoes = [
-        { rotulo: 'Crianças', total: totais.criancas, href: '/criancas', icone: CriancasIcon },
+        {
+            rotulo: 'Acolhimentos em curso',
+            total: totais.acolhimentos_em_curso,
+            href: '/criancas',
+            icone: CriancasIcon,
+        },
         { rotulo: 'PIA', total: totais.pias, href: '/pias', icone: PiaIcon },
         { rotulo: 'Ocorrências', total: totais.reports, href: '/reports', icone: ReportsIcon },
         { rotulo: 'Visitas', total: totais.visitas, href: '/visitas-tecnicas', icone: VisitasIcon },

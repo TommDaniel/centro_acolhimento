@@ -146,6 +146,15 @@ test.describe('privacidade da busca autorizada', () => {
         expect(page.url()).not.toContain(nameTerm);
         expect(page.url()).not.toContain(encodeURIComponent(nameTerm));
 
+        await page.goto('/criancas');
+        const indexSearch = page.getByLabel('Buscar criança ou adolescente');
+        await expect(indexSearch).toBeVisible();
+        const { resultPayload: indexPayload } = await submitSearch(page, indexSearch, nameTerm);
+        expect(indexPayload.props.criancas.total).toBe(1);
+        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}$/);
+        expect(page.url()).not.toContain(nameTerm);
+        expect(page.url()).not.toContain(encodeURIComponent(nameTerm));
+
         const browserState = await page.evaluate(() => ({
             history: JSON.stringify(window.history.state),
             localStorage: JSON.stringify({ ...window.localStorage }),

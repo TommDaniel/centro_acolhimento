@@ -14,11 +14,11 @@ import DocMeta from '@/Components/DocMeta';
 import KvList from '@/Components/KvList';
 import SecoesDoc from '@/Components/SecoesDoc';
 import CriancaAvatar from '@/Components/CriancaAvatar';
-import { fmtData } from '@/utils/format';
+import { fmtData, fmtDataHora } from '@/utils/format';
 
 const tipoLabels = { genitora: 'Genitora', genitor: 'Genitor', responsavel: 'Responsável' };
 
-export default function Show({ pia, secoes, identificacao, familiares }) {
+export default function Show({ pia, secoes, identificacao, familiares, legadoAConferir, vinculoAcolhimento }) {
     const podeAlterar = () => true;
 
     const todosFamiliares = familiares ?? [];
@@ -180,6 +180,33 @@ export default function Show({ pia, secoes, identificacao, familiares }) {
                         Dados do acolhimento
                     </Typography>
                     <Stack spacing={1.5}>
+                        {vinculoAcolhimento ? (
+                            <Alert severity="info">
+                                PIA vinculado ao episódio com ingresso em{' '}
+                                {fmtDataHora(vinculoAcolhimento.ingresso_em)}. A identificação histórica usa esse episódio.
+                            </Alert>
+                        ) : (
+                            <Alert severity="warning">
+                                PIA sem vínculo explícito com episódio. Nenhum episódio foi associado por inferência.
+                            </Alert>
+                        )}
+                        {legadoAConferir && (
+                            <Alert severity="warning">
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    Dados anteriores a conferir
+                                </Typography>
+                                {legadoAConferir.data && (
+                                    <Typography variant="body2">
+                                        Data anterior informada, sem horário: {fmtData(legadoAConferir.data)}
+                                    </Typography>
+                                )}
+                                {legadoAConferir.motivo && (
+                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+                                        Motivo anterior informado: {legadoAConferir.motivo}
+                                    </Typography>
+                                )}
+                            </Alert>
+                        )}
                         {pia.dados_acolhimento && (
                             <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.7 }}>
                                 {pia.dados_acolhimento}

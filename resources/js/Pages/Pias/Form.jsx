@@ -6,23 +6,36 @@ import {
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
 import CriancaSelect from '@/Components/CriancaSelect';
-import { fmtData } from '@/utils/format';
+import { fmtData, fmtDataHora } from '@/utils/format';
 
 /** Monta o texto de "Dados do acolhimento" a partir do cadastro da criança. */
 function montarDadosAcolhimento(crianca) {
     if (!crianca) return '';
     const partes = [];
-    if (crianca.data_acolhimento) {
-        partes.push(`Data do acolhimento: ${fmtData(crianca.data_acolhimento)}.`);
+    if (crianca.episodio_aberto_id) {
+        partes.push(`Ingresso registrado em ${fmtDataHora(crianca.ingresso_em)}.`);
+        if (crianca.motivo_ingresso) {
+            partes.push(`Motivo: ${crianca.motivo_ingresso}`);
+        }
+    } else if (crianca.acolhimento_fonte === 'episodio') {
+        partes.push('O último episódio está encerrado; este PIA ficará sem vínculo com episódio.');
+    } else {
+        partes.push('Ingresso ainda não registrado.');
     }
-    if (crianca.motivo_acolhimento) {
-        partes.push(`Motivo: ${crianca.motivo_acolhimento}`);
+    if (crianca.legado_a_conferir) {
+        partes.push('Dados anteriores a conferir, preservados separadamente do episódio confirmado.');
+        if (crianca.legado_a_conferir.data) {
+            partes.push(`Data anterior informada, sem horário: ${fmtData(crianca.legado_a_conferir.data)}.`);
+        }
+        if (crianca.legado_a_conferir.motivo) {
+            partes.push(`Motivo anterior informado: ${crianca.legado_a_conferir.motivo}`);
+        }
     }
-    if (crianca.processo_numero) {
+    if (crianca.processo_numero_snapshot) {
         partes.push(
-            `Processo nº ${crianca.processo_numero}` +
-                (crianca.vara ? ` — ${crianca.vara}` : '') +
-                (crianca.comarca ? ` / ${crianca.comarca}` : '') +
+            `Processo nº ${crianca.processo_numero_snapshot}` +
+                (crianca.vara_snapshot ? ` — ${crianca.vara_snapshot}` : '') +
+                (crianca.comarca_snapshot ? ` / ${crianca.comarca_snapshot}` : '') +
                 '.'
         );
     }
@@ -47,11 +60,16 @@ function CampoTexto({ form, campo, label, rows = 4 }) {
 
 export default function Form({ pia, criancas, criancaId }) {
     const editando = Boolean(pia);
+    const criancaInicialId = pia?.crianca_id ?? criancaId ?? '';
+    const criancaInicial = criancas.find((crianca) => crianca.id === Number(criancaInicialId)) ?? null;
     // true quando o usuário tocou no campo — o autopreenchimento para aí.
     const acolhimentoEditado = useRef(false);
 
     const form = useForm({
-        crianca_id: pia?.crianca_id ?? criancaId ?? '',
+        crianca_id: criancaInicialId,
+        ...(!editando && {
+            expected_acolhimento_id: criancaInicial?.episodio_aberto_id ?? null,
+        }),
         numero_oficio: pia?.numero_oficio ?? '',
         dados_acolhimento: pia?.dados_acolhimento ?? '',
         encaminhado_por: pia?.encaminhado_por ?? '',
@@ -71,6 +89,20 @@ export default function Form({ pia, criancas, criancaId }) {
         plano_acao: pia?.plano_acao ?? '',
         providencias_judiciario: pia?.providencias_judiciario ?? '',
     });
+    const criancaSelecionada = criancas.find((crianca) => crianca.id === Number(form.data.crianca_id)) ?? null;
+
+    const selecionarCrianca = (id) => {
+        const crianca = criancas.find((item) => item.id === Number(id)) ?? null;
+
+        acolhimentoEditado.current = false;
+        form.clearErrors('expected_acolhimento_id');
+        form.setData({
+            ...form.data,
+            crianca_id: id,
+            expected_acolhimento_id: crianca?.episodio_aberto_id ?? null,
+            dados_acolhimento: montarDadosAcolhimento(crianca),
+        });
+    };
 
     // No create, pré-preenche os dados do acolhimento a partir da criança
     // selecionada (inclusive no mount, quando criancaId vem pela query string).
@@ -116,9 +148,34 @@ export default function Form({ pia, criancas, criancaId }) {
                             <CriancaSelect
                                 criancas={criancas}
                                 value={form.data.crianca_id}
-                                onChange={(id) => form.setData('crianca_id', id)}
+                                onChange={selecionarCrianca}
                                 error={form.errors.crianca_id}
+                                disabled={editando}
+                                helperText={editando ? 'A pessoa vinculada ao PIA não pode ser alterada.' : undefined}
                             />
+                            {form.errors.expected_acolhimento_id && (
+                                <Alert severity="error" role="alert">
+                                    {form.errors.expected_acolhimento_id}
+                                </Alert>
+                            )}
+                            {!editando && criancaSelecionada?.episodio_aberto_id && (
+                                <Alert severity="info">
+                                    Este PIA será vinculado pelo servidor ao episódio aberto com ingresso em{' '}
+                                    {fmtDataHora(criancaSelecionada.ingresso_em)}.
+                                </Alert>
+                            )}
+                            {!editando && criancaSelecionada && !criancaSelecionada.episodio_aberto_id && (
+                                <Alert severity="warning">
+                                    Este PIA ficará sem vínculo com episódio. O sistema não associa automaticamente
+                                    um episódio encerrado nem dados anteriores ainda não reconciliados.
+                                </Alert>
+                            )}
+                            {criancaSelecionada?.legado_a_conferir && (
+                                <Alert severity="warning">
+                                    Dados anteriores a conferir continuam preservados separadamente, inclusive após
+                                    um novo ingresso confirmado.
+                                </Alert>
+                            )}
                             <TextField
                                 label="Nº do ofício (opcional — deixe em branco para gerar automaticamente)"
                                 fullWidth

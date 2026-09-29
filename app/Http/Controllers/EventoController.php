@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpsertEventoRequest;
-use App\Models\Crianca;
 use App\Models\Evento;
+use App\Services\AcolhimentoProjection;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class EventoController extends Controller
 {
+    public function __construct(private AcolhimentoProjection $acolhimentoProjection) {}
+
     public function index(): Response
     {
         $this->authorize('viewAny', Evento::class);
@@ -19,8 +21,7 @@ class EventoController extends Controller
             ->orderBy('inicio')
             ->get();
 
-        $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')
-            ->get(['id', 'nome_completo']);
+        $criancas = $this->acolhimentoProjection->childrenForSelection();
 
         return Inertia::render('Agenda/Index', [
             'eventos' => $eventos,

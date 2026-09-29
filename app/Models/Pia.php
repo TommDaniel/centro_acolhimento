@@ -29,6 +29,11 @@ class Pia extends Model
         return $this->belongsTo(Crianca::class);
     }
 
+    public function acolhimento(): BelongsTo
+    {
+        return $this->belongsTo(Acolhimento::class);
+    }
+
     public function setor(): BelongsTo
     {
         return $this->belongsTo(Setor::class);

@@ -22,6 +22,7 @@ import {
     ShieldOutlined as AuditoriaIcon,
     Search as SearchIcon,
 } from '@mui/icons-material';
+import { logoutSecurely } from '@/secureHistory';
 
 const drawerWidth = 264;
 
@@ -251,7 +252,7 @@ export default function AppLayout({ titulo, children }) {
                             <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                             Meu perfil
                         </MenuItem>
-                        <MenuItem onClick={() => router.post(route('logout'))}>
+                        <MenuItem onClick={() => logoutSecurely(route('logout'))}>
                             <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
                             Sair
                         </MenuItem>

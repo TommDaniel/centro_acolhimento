@@ -12,6 +12,7 @@ import {
     Visibility as VerIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
+import AcolhimentoPanel from '@/Components/AcolhimentoPanel';
 import CriancaAvatar from '@/Components/CriancaAvatar';
 import DocMeta from '@/Components/DocMeta';
 import EmptyState from '@/Components/EmptyState';
@@ -106,7 +107,15 @@ function CartaoDocumentos({ titulo, itens, hrefNovo, dataDe, chipDe, rotaShow, r
     );
 }
 
-export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
+export default function Show({
+    crianca,
+    identificacao,
+    ultimaAtualizacao,
+    acolhimento,
+    linhaDoTempoAcolhimento,
+    legadoAConferir,
+    opcoesAcolhimento,
+}) {
     const podeAlterar = () => true;
 
     const [dialogFamiliar, setDialogFamiliar] = useState(false);
@@ -223,7 +232,10 @@ export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
                                     </Typography>
                                 )}
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }} flexWrap="wrap" useFlexGap>
-                                    <StatusChip status={crianca.status} />
+                                    <StatusChip
+                                        situacao={acolhimento?.situacao}
+                                        fonte={acolhimento ? 'episodio' : (legadoAConferir ? 'legado' : 'nenhum')}
+                                    />
                                     {crianca.idade !== null && crianca.idade !== undefined && (
                                         <Typography variant="body2" color="text.secondary">
                                             Idade: {crianca.idade} anos
@@ -252,6 +264,14 @@ export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
                         </Box>
                     </CardContent>
                 </Card>
+
+                <AcolhimentoPanel
+                    criancaId={crianca.id}
+                    acolhimento={acolhimento}
+                    linhaDoTempo={linhaDoTempoAcolhimento}
+                    legadoAConferir={legadoAConferir}
+                    opcoes={opcoesAcolhimento}
+                />
 
                 <Card>
                     <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
@@ -313,19 +333,6 @@ export default function Show({ crianca, identificacao, ultimaAtualizacao }) {
                         )}
                     </CardContent>
                 </Card>
-
-                {crianca.motivo_acolhimento && (
-                    <Card>
-                        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                            <Typography variant="h6" sx={{ mb: 1 }}>
-                                Motivo do acolhimento
-                            </Typography>
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.7 }}>
-                                {crianca.motivo_acolhimento}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                )}
 
                 {crianca.observacoes && (
                     <Card>

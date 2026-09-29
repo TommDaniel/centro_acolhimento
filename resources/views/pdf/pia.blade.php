@@ -67,7 +67,7 @@
             <td class="dados">
                 <table class="ident">
                     <tbody>
-                        @foreach($pia->crianca->identificacao() as $rotulo => $valor)
+                        @foreach($identificacao as $rotulo => $valor)
                             @if(filled($valor))
                                 <tr>
                                     <td class="rotulo">{{ $rotulo }}</td>
@@ -138,8 +138,24 @@
         @endif
     @endif
 
-    @if(filled($pia->dados_acolhimento) || filled($pia->encaminhado_por) || $pia->acolhimento_anterior)
+    @if(filled($pia->dados_acolhimento) || filled($pia->encaminhado_por) || $pia->acolhimento_anterior || $pia->acolhimento || $legadoAConferir)
         <h2 class="secao">{{ $n++ }}. Dados do acolhimento</h2>
+        @if($pia->acolhimento)
+            <div class="texto"><strong>Episódio vinculado:</strong> ingresso em {{ $pia->acolhimento->ingresso_em->timezone('America/Sao_Paulo')->format('d/m/Y \à\s H:i') }}.</div>
+        @else
+            <div class="texto"><strong>PIA sem vínculo explícito com episódio.</strong> Nenhum episódio foi associado por inferência.</div>
+        @endif
+        @if($legadoAConferir)
+            <div class="texto">
+                <strong>Dados anteriores a conferir.</strong> Este histórico permanece separado dos episódios confirmados.
+                @if($legadoAConferir['data'])
+                    <br>Data anterior informada, sem horário: {{ \Carbon\CarbonImmutable::parse($legadoAConferir['data'])->format('d/m/Y') }}.
+                @endif
+                @if($legadoAConferir['motivo'])
+                    <br>Motivo anterior informado: {!! nl2br(e($legadoAConferir['motivo'])) !!}
+                @endif
+            </div>
+        @endif
         @if(filled($pia->dados_acolhimento))
             <div class="texto">{!! nl2br(e($pia->dados_acolhimento)) !!}</div>
         @endif

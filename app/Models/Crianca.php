@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'nome_completo', 'nome_social', 'data_nascimento', 'sexo', 'identidade_genero', 'cor_raca',
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'cartao_sus', 'nis', 'titulo_eleitor',
     'nome_mae', 'nome_pai', 'responsavel_legal', 'contato_responsavel',
     'endereco_familia', 'processo_numero', 'vara', 'comarca',
-    'data_acolhimento', 'motivo_acolhimento', 'foto', 'status', 'observacoes',
+    'foto', 'observacoes',
 ])]
 #[Hidden(['foto'])]
 class Crianca extends Model
@@ -80,13 +81,30 @@ class Crianca extends Model
         return $this->belongsTo(Organizacao::class);
     }
 
+    public function acolhimentos(): HasMany
+    {
+        return $this->hasMany(Acolhimento::class)->orderBy('ingresso_em')->orderBy('id');
+    }
+
+    public function ultimoAcolhimento(): HasOne
+    {
+        return $this->hasOne(Acolhimento::class)->ofMany([
+            'ingresso_em' => 'max',
+            'id' => 'max',
+        ]);
+    }
+
     /**
      * Bloco de identificação reutilizado no PIA e demais documentos.
      *
      * @return array<string, string|null>
      */
-    public function identificacao(): array
+    public function identificacao(?Acolhimento $acolhimento = null): array
     {
+        if ($acolhimento === null && $this->relationLoaded('ultimoAcolhimento')) {
+            $acolhimento = $this->ultimoAcolhimento;
+        }
+
         return [
             'Nome completo' => $this->nome_completo,
             'Nome social' => $this->nome_social,
@@ -109,10 +127,13 @@ class Crianca extends Model
             'Responsável legal' => $this->responsavel_legal,
             'Contato do responsável' => $this->contato_responsavel,
             'Endereço da família' => $this->endereco_familia,
-            'Nº do processo' => $this->processo_numero,
-            'Vara' => $this->vara,
-            'Comarca' => $this->comarca,
-            'Data de acolhimento' => $this->data_acolhimento?->format('d/m/Y'),
+            'Nº do processo' => $acolhimento === null
+                ? $this->processo_numero
+                : $acolhimento->processo_numero_snapshot,
+            'Vara' => $acolhimento === null ? $this->vara : $acolhimento->vara_snapshot,
+            'Comarca' => $acolhimento === null ? $this->comarca : $acolhimento->comarca_snapshot,
+            ($acolhimento === null ? 'Data anterior de acolhimento (a conferir)' : 'Data de ingresso') => $acolhimento?->ingresso_em->setTimezone('America/Sao_Paulo')->format('d/m/Y H:i')
+                ?? $this->data_acolhimento?->format('d/m/Y'),
         ];
     }
 }

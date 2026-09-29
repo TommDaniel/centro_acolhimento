@@ -66,7 +66,8 @@ class SearchPrivacyTest extends TestCase
                 ->where('criancas.data.0.nome_completo', $child->nome_completo)
                 ->where('criancas.data.0.data_nascimento', '2013-06-07')
                 ->where('criancas.data.0.processo_numero', 'PROCESSO-PRIVACIDADE-FICTICIO-2026')
-                ->where('criancas.data.0.status', 'acolhida')
+                ->where('criancas.data.0.acolhimento_situacao', null)
+                ->where('criancas.data.0.acolhimento_fonte', 'nenhum')
                 ->where('criancas.data.0.pias_count', 1)
                 ->where('criancas.data.0.reports_count', 1)
                 ->where('criancas.data.0.visitas_tecnicas_count', 1)
@@ -94,6 +95,7 @@ class SearchPrivacyTest extends TestCase
                     'criancas.data.0.comarca',
                     'criancas.data.0.data_acolhimento',
                     'criancas.data.0.motivo_acolhimento',
+                    'criancas.data.0.status',
                     'criancas.data.0.foto',
                     'criancas.data.0.foto_url',
                     'criancas.data.0.idade',
@@ -123,7 +125,8 @@ class SearchPrivacyTest extends TestCase
             'nome_completo',
             'data_nascimento',
             'processo_numero',
-            'status',
+            'acolhimento_situacao',
+            'acolhimento_fonte',
             'pias_count',
             'reports_count',
             'visitas_tecnicas_count',

@@ -6,13 +6,17 @@ use App\Actions\CreateCrianca;
 use App\Actions\StorePrivatePortrait;
 use App\Actions\UpdateCrianca;
 use App\Http\Requests\UpsertCriancaRequest;
+use App\Models\Acolhimento;
 use App\Models\Crianca;
 use App\Models\CriancaDocumento;
 use App\Models\Familiar;
+use App\Services\AcolhimentoProjection;
 use App\Services\AuditRecorder;
 use App\Services\PrivatePortraitStorage;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 use Throwable;
 
 class CriancaController extends Controller
@@ -23,33 +27,39 @@ class CriancaController extends Controller
         private StorePrivatePortrait $storePrivatePortrait,
         private PrivatePortraitStorage $privatePortraits,
         private AuditRecorder $audit,
+        private AcolhimentoProjection $acolhimentoProjection,
     ) {}
 
-    public function index(Request $request)
+    public function index(Request $request): Response|RedirectResponse
     {
         $this->authorize('viewAny', Crianca::class);
 
-        $q = trim((string) $request->input('q'));
-        $status = $request->input('status', 'acolhida');
+        if ($request->query->has('q')) {
+            return redirect()->route('criancas.index', status: 303);
+        }
 
         $criancas = Crianca::query()
-            ->when($status !== 'todas', fn ($query) => $query->where('status', $status))
-            ->when($q !== '', function ($query) use ($q) {
-                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
-                $query->where(function ($where) use ($like) {
-                    $where->where('nome_completo', 'like', $like)
-                        ->orWhere('nome_social', 'like', $like)
-                        ->orWhere('processo_numero', 'like', $like)
-                        ->orWhere('rg', 'like', $like);
-                });
-            })
+            ->with('ultimoAcolhimento.ultimaMovimentacao')
             ->orderBy('nome_completo')
+            ->select([
+                'id', 'nome_completo', 'data_nascimento', 'processo_numero', 'foto',
+                'data_acolhimento', 'motivo_acolhimento', 'status',
+            ])
             ->paginate(12)
-            ->withQueryString();
+            ->through(function (Crianca $crianca): array {
+                $this->withPortraitUrl($crianca);
 
-        $criancas->getCollection()->each(fn (Crianca $crianca) => $this->withPortraitUrl($crianca));
+                return [
+                    'id' => $crianca->id,
+                    'nome_completo' => $crianca->nome_completo,
+                    'data_nascimento' => $crianca->data_nascimento?->toDateString(),
+                    'processo_numero' => $crianca->processo_numero,
+                    'foto_url' => $crianca->getAttribute('foto_url'),
+                    ...$this->acolhimentoProjection->summaryForChild($crianca),
+                ];
+            });
 
-        return Inertia::render('Criancas/Index', compact('criancas', 'q', 'status'));
+        return Inertia::render('Criancas/Index', compact('criancas'));
     }
 
     public function create()
@@ -96,6 +106,12 @@ class CriancaController extends Controller
             'pertences' => fn ($q) => $q->with('criador')->latest(),
         ]);
 
+        $acolhimentos = $crianca->acolhimentos()
+            ->with(['criador:id,name', 'movimentacoes.criador:id,name'])
+            ->get();
+        $currentEpisode = $acolhimentos->last();
+        $currentMovement = $currentEpisode?->movimentacoes->last();
+
         $this->audit->record('crianca.viewed', 'success', $request->user(), $crianca);
 
         $lastChange = $crianca->updated_by === null
@@ -103,13 +119,64 @@ class CriancaController extends Controller
             : $crianca->loadMissing('atualizador')->atualizador;
 
         $this->withPortraitUrl($crianca);
+        $crianca->makeHidden(['data_acolhimento', 'motivo_acolhimento', 'status']);
 
         return Inertia::render('Criancas/Show', [
             'crianca' => $crianca,
-            'identificacao' => $crianca->identificacao(),
+            'identificacao' => $crianca->identificacao($currentEpisode),
             'ultimaAtualizacao' => $lastChange === null ? null : [
                 'author' => $lastChange->name,
                 'at' => $crianca->updated_at,
+            ],
+            'acolhimento' => $currentEpisode === null ? null : [
+                'id' => $currentEpisode->id,
+                'situacao' => $currentMovement?->situacao_resultante?->value,
+                'desde' => $currentMovement?->efetiva_em,
+                'ingresso_em' => $currentEpisode->ingresso_em,
+                'motivo' => $currentEpisode->motivo,
+                'fundamento' => $currentEpisode->fundamento,
+                'origem' => Acolhimento::ORIGENS[$currentEpisode->origem_codigo] ?? $currentEpisode->origem_codigo,
+                'origem_complemento' => $currentEpisode->origem_complemento,
+                'orgao_condutor' => Acolhimento::ORGAOS_CONDUTORES[$currentEpisode->orgao_condutor_codigo]
+                    ?? $currentEpisode->orgao_condutor_codigo,
+                'orgao_condutor_complemento' => $currentEpisode->orgao_condutor_complemento,
+                'pessoa_condutora' => $currentEpisode->pessoa_condutora,
+                'registrado_por' => $currentMovement?->criador?->name ?? $currentEpisode->criador?->name,
+                'registrado_em' => $currentMovement?->recorded_at ?? $currentEpisode->recorded_at,
+                'aberto' => $currentEpisode->encerrado_em === null,
+            ],
+            'linhaDoTempoAcolhimento' => $acolhimentos->flatMap(
+                fn (Acolhimento $episode, int $episodeIndex) => $episode->movimentacoes->map(
+                    fn ($movement): array => [
+                        'id' => $movement->id,
+                        'episodio_id' => $episode->id,
+                        'episodio_ordem' => $episodeIndex + 1,
+                        'tipo' => $movement->tipo->value,
+                        'situacao' => $movement->situacao_resultante->value,
+                        'efetiva_em' => $movement->efetiva_em,
+                        'motivo' => $movement->motivo,
+                        'fundamento' => $movement->fundamento,
+                        'local_destino' => $movement->local_destino,
+                        'observacao' => $movement->observacao,
+                        'registrado_por' => $movement->criador?->name,
+                        'registrado_em' => $movement->recorded_at,
+                        'episodio_contexto' => $movement->tipo->value === 'ingresso' ? [
+                            'motivo' => $episode->motivo,
+                            'fundamento' => $episode->fundamento,
+                            'origem' => Acolhimento::ORIGENS[$episode->origem_codigo] ?? $episode->origem_codigo,
+                            'origem_complemento' => $episode->origem_complemento,
+                            'orgao_condutor' => Acolhimento::ORGAOS_CONDUTORES[$episode->orgao_condutor_codigo]
+                                ?? $episode->orgao_condutor_codigo,
+                            'orgao_condutor_complemento' => $episode->orgao_condutor_complemento,
+                            'pessoa_condutora' => $episode->pessoa_condutora,
+                        ] : null,
+                    ],
+                ),
+            )->values(),
+            'legadoAConferir' => $this->acolhimentoProjection->legacyData($crianca),
+            'opcoesAcolhimento' => [
+                'origens' => Acolhimento::ORIGENS,
+                'orgaos_condutores' => Acolhimento::ORGAOS_CONDUTORES,
             ],
         ]);
     }

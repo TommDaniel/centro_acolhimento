@@ -56,10 +56,7 @@ export default function Form({ crianca }) {
         processo_numero: crianca?.processo_numero ?? '',
         vara: crianca?.vara ?? '',
         comarca: crianca?.comarca ?? '',
-        data_acolhimento: crianca?.data_acolhimento?.slice(0, 10) ?? '',
-        motivo_acolhimento: crianca?.motivo_acolhimento ?? '',
         foto: null,
-        status: crianca?.status ?? 'acolhida',
         observacoes: crianca?.observacoes ?? '',
     });
 
@@ -98,7 +95,9 @@ export default function Form({ crianca }) {
 
             <PageHeader
                 titulo={titulo}
-                subtitulo={editando ? crianca.nome_completo : 'Cadastro de criança/adolescente acolhida.'}
+                subtitulo={editando
+                    ? crianca.nome_completo
+                    : 'Cadastre a pessoa primeiro. O ingresso é registrado em seguida, na ficha.'}
             />
 
             <Box component="form" onSubmit={enviar}>
@@ -166,30 +165,13 @@ export default function Form({ crianca }) {
                         />
                     </Secao>
 
-                    <Secao titulo="Processo e acolhimento">
+                    <Secao titulo="Processo">
                         <TextField label="Nº do processo" {...campo('processo_numero')} />
                         <TextField label="Vara" {...campo('vara')} />
                         <TextField label="Comarca" {...campo('comarca')} />
-                        <TextField
-                            label="Data de acolhimento"
-                            type="date"
-                            slotProps={{ inputLabel: { shrink: true } }}
-                            {...campo('data_acolhimento')}
-                        />
-                        <TextField
-                            label="Motivo do acolhimento"
-                            multiline
-                            rows={3}
-                            sx={{ gridColumn: { sm: '1 / -1' } }}
-                            {...campo('motivo_acolhimento')}
-                        />
                     </Secao>
 
                     <Secao titulo="Outros">
-                        <TextField select label="Status" {...campo('status')}>
-                            <MenuItem value="acolhida">Acolhida</MenuItem>
-                            <MenuItem value="desligada">Desligada</MenuItem>
-                        </TextField>
                         <TextField
                             label="Observações"
                             multiline

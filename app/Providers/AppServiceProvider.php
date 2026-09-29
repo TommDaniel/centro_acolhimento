@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Acolhimento;
 use App\Models\Crianca;
 use App\Models\Evento;
 use App\Models\Pertence;
@@ -93,7 +94,7 @@ class AppServiceProvider extends ServiceProvider
             fn (Request $request): array => $passwordResetLimits($request, 'password-reset-capture', true),
         );
 
-        foreach ([Crianca::class, User::class, Setor::class, Pia::class, VisitaTecnica::class, Report::class, Pertence::class, Evento::class] as $model) {
+        foreach ([Crianca::class, Acolhimento::class, User::class, Setor::class, Pia::class, VisitaTecnica::class, Report::class, Pertence::class, Evento::class] as $model) {
             $model::observe(InstitutionContextObserver::class);
         }
 

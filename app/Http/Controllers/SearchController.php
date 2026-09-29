@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Crianca;
+use App\Services\AcolhimentoProjection;
 use App\Services\AuditRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,10 @@ class SearchController extends Controller
 
     private const SEARCH_EXPIRY_MINUTES = 10;
 
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private AcolhimentoProjection $acolhimentoProjection,
+    ) {}
 
     public function store(Request $request): RedirectResponse
     {
@@ -75,7 +79,10 @@ class SearchController extends Controller
         $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search['term']).'%';
 
         $criancas = Crianca::query()
-            ->select(['id', 'nome_completo', 'data_nascimento', 'processo_numero', 'status'])
+            ->select([
+                'id', 'nome_completo', 'data_nascimento', 'processo_numero',
+                'data_acolhimento', 'motivo_acolhimento', 'status',
+            ])
             ->where(function ($where) use ($like) {
                 $where->where('nome_completo', 'like', $like)
                     ->orWhere('nome_social', 'like', $like)
@@ -86,20 +93,26 @@ class SearchController extends Controller
                     ->orWhere('nome_pai', 'like', $like)
                     ->orWhere('responsavel_legal', 'like', $like);
             })
+            ->with('ultimoAcolhimento.ultimaMovimentacao')
             ->withCount(['pias', 'reports', 'visitasTecnicas', 'pertences'])
             ->orderBy('nome_completo')
             ->paginate(15)
-            ->through(static fn (Crianca $crianca): array => [
-                'id' => $crianca->id,
-                'nome_completo' => $crianca->nome_completo,
-                'data_nascimento' => $crianca->data_nascimento?->toDateString(),
-                'processo_numero' => $crianca->processo_numero,
-                'status' => $crianca->status,
-                'pias_count' => (int) $crianca->pias_count,
-                'reports_count' => (int) $crianca->reports_count,
-                'visitas_tecnicas_count' => (int) $crianca->visitas_tecnicas_count,
-                'pertences_count' => (int) $crianca->pertences_count,
-            ])
+            ->through(function (Crianca $crianca): array {
+                $projection = $this->acolhimentoProjection->summaryForChild($crianca);
+
+                return [
+                    'id' => $crianca->id,
+                    'nome_completo' => $crianca->nome_completo,
+                    'data_nascimento' => $crianca->data_nascimento?->toDateString(),
+                    'processo_numero' => $crianca->processo_numero,
+                    'acolhimento_situacao' => $projection['acolhimento_situacao'],
+                    'acolhimento_fonte' => $projection['acolhimento_fonte'],
+                    'pias_count' => (int) $crianca->pias_count,
+                    'reports_count' => (int) $crianca->reports_count,
+                    'visitas_tecnicas_count' => (int) $crianca->visitas_tecnicas_count,
+                    'pertences_count' => (int) $crianca->pertences_count,
+                ];
+            })
             ->withPath(route('busca', ['searchId' => $searchId]));
 
         $this->audit->record('search.executed', 'success', $request->user());

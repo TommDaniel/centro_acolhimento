@@ -80,6 +80,28 @@ continua sem publicação. O servidor de teste usa workers concorrentes com
 `--no-reload`, e a suíte sincroniza as gravações pela resposta HTTP e pela
 navegação Inertia resultante, sem depender de pausas arbitrárias ou retries.
 
+O E2E mantém a sessão em arquivos somente como exceção local, mas usa o cache
+`database` do PostgreSQL para o bloqueio atômico e compartilhado entre os quatro
+workers. O bloqueio é global: toda requisição stateful da mesma sessão adquire o
+lock antes de ler e salvar a sessão. Isso impede que uma resposta lenta, como um
+retrato privado, sobrescreva um handle de busca criado em paralelo. Usuários e
+sessões diferentes continuam executando concorrentemente.
+
+`SESSION_BLOCK_WAIT_SECONDS=10` limita a espera; esgotá-la responde `503` com
+`no-store`, sem carregar ou salvar a sessão. O lease padrão é de 300 segundos.
+No E2E, esse valor mantém margem sobre o limite de 120 segundos da suíte. Em
+staging e produção, o timeout efetivo do servidor web/PHP deve ser configurado
+em no máximo 240 segundos e permanecer menor que
+`SESSION_BLOCK_LOCK_SECONDS`; o servidor PHP local tem
+`max_execution_time=0` e não serve como referência operacional. Se o timeout
+web aumentar, o lease deve ser aumentado antes do deploy.
+
+O store de lock precisa ser compartilhado e atômico. `file` e `array` não são
+válidos em implantação com múltiplos processos ou réplicas. O PostgreSQL
+`database` atende ao protótipo; a implantação futura pode usar Redis definindo
+`SESSION_BLOCK_STORE=redis`, desde que todos os workers usem a mesma instância e
+a indisponibilidade do store continue falhando de modo fechado.
+
 Atrito local não bloqueante: como os containers usam identidades distintas,
 artefatos de `public/build` criados pelo Playwright podem não ser substituíveis
 pelo container Node comum em alguns hosts. O build validado deve usar o perfil
@@ -94,6 +116,87 @@ UTC; as consultas calculam o início do dia em São Paulo e convertem a fronteir
 para UTC antes de consultar o PostgreSQL. Compromissos de dia inteiro continuam
 como uma data civil e não mudam de dia ao serem criados, editados ou exibidos.
 Os testes Feature e E2E cobrem criação, edição, leitura e dia inteiro.
+
+## Episódios e movimentações — PROT-01B1
+
+O cadastro da pessoa permanece separado do episódio de acolhimento. Um ingresso
+explícito cria o episódio e a primeira movimentação `ingresso`; evasão,
+retorno, internação e desacolhimento sempre inserem novas movimentações. Evasão
+e internação não encerram o episódio. Somente a movimentação de
+`desacolhimento` preenche, na mesma transação, a projeção técnica monotônica de
+encerramento do episódio.
+
+O PostgreSQL protege no máximo um episódio aberto por pessoa/unidade com índice
+único parcial. Movimentações não aceitam `UPDATE`, `DELETE` ou `TRUNCATE`, e os
+campos factuais do episódio não podem ser reescritos; o único `UPDATE` permitido
+é o fechamento uma vez, ligado à movimentação canônica correspondente. A
+aplicação também bloqueia a pessoa/episódio sob transação, valida a máquina de
+estados e rejeita uma chave idempotente repetida com conteúdo diferente.
+Origem e órgão condutor usam códigos v0 separados, com complemento obrigatório
+para `outro`; a pessoa condutora é outro campo curto. Organização, unidade,
+autoria, situação resultante e horário de registro são derivados no servidor.
+Datas e horas digitadas representam `America/Sao_Paulo` e são persistidas em
+UTC.
+
+As colunas antigas `criancas.data_acolhimento`,
+`criancas.motivo_acolhimento` e `criancas.status` são preservadas sem backfill e
+não aceitam novas mutações pelo formulário de cadastro. Quando ainda não existe
+episódio, a ficha distingue `Ingresso ainda não registrado` de `Dados anteriores
+a conferir`; uma data antiga continua sendo somente data civil, sem horário ou
+saída inferidos. A reconciliação desses registros exige corte posterior e não
+deve criar evasão, internação, retorno ou desacolhimento presumido.
+
+O bloco `Dados anteriores a conferir` permanece visível mesmo depois de um
+ingresso confirmado: ele é histórico separado e nunca vira a situação atual.
+Listagens, Dashboard, Agenda e seletores de documentos usam a projeção dos
+episódios; episódio aberto pode estar `na_unidade`, `evadido` ou `internado`, o
+último episódio encerrado fica `desacolhido`, e pessoa sem episódio fica sem
+ingresso ou com legado explicitamente pendente. A busca iniciada na listagem
+envia o termo por `POST` ao fluxo protegido, mantém apenas uma referência opaca
+na URL e responde com `no-store`; o termo não é colocado na query string.
+
+Cada episódio guarda, no ingresso, snapshots nullables e imutáveis do número do
+processo, vara e comarca obtidos do cadastro pelo servidor sob o mesmo lock.
+Alterações posteriores no cadastro não reescrevem nem são combinadas com esse
+contexto. PIAs novos são vinculados pelo servidor somente ao episódio aberto
+atual; sem episódio aberto, o vínculo permanece `NULL` com
+aviso explícito. PIAs legados `NULL` não são associados por inferência, e um
+vínculo existente não pode ser trocado. Tela e PDF de PIA vinculado usam a data
+e os snapshots do episódio específico, preservando o documento após
+reingressos. Episódios criados antes dos snapshots adicionais permanecem com
+vara/comarca históricas nulas: não há backfill a partir do cadastro atual. PIAs
+legados sem vínculo continuam usando o contexto não reconciliado já existente;
+uma política futura de retificação/reconciliação deve ser definida antes de
+alterar esses documentos.
+
+Na criação do PIA, o formulário envia uma precondição
+`expected_acolhimento_id` correspondente ao episódio exibido, inclusive `NULL`
+explícito quando não havia episódio aberto. Sob lock da pessoa, o servidor
+resolve novamente o episódio aberto e rejeita a criação se o estado mudou; a
+usuária deve atualizar o formulário antes de reenviar. Essa precondição nunca é
+usada como vínculo autoritativo e o cliente continua proibido de enviar
+`acolhimento_id`. A rejeição não cria PIA nem auditoria de sucesso.
+
+Na ficha autorizada, cada entrada da linha do tempo identifica seu episódio e
+mostra motivo/fundamento, origem, órgão e pessoa condutora daquele ingresso; os
+fundamentos das demais movimentações permanecem junto ao respectivo fato. Nos
+formulários, ao trocar `Outro` por um código padrão, o complemento oculto é
+limpo no cliente e continua proibido pela validação do servidor.
+
+As migrations são aditivas e o rollback operacional seguro é voltar a versão
+da aplicação mantendo as novas tabelas e fazer correções roll-forward. O método
+`down()` existe para bancos efêmeros vazios de CI/desenvolvimento e remove
+primeiro triggers/FKs; não o execute depois que houver fatos registrados, pois
+isso descartaria o novo histórico. Nunca use `migrate:fresh` para esse fluxo em
+staging ou produção.
+
+Testes focados, incluindo concorrência multiprocesso no PostgreSQL 17:
+
+```bash
+docker compose run --rm -e APP_ENV=testing app php artisan test --compact tests/Feature/AcolhimentoFlowTest.php
+docker compose run --rm -e APP_ENV=testing app php artisan test --compact tests/Feature/PiaAcolhimentoHistoryTest.php tests/Feature/AcolhimentoProjectionConsumersTest.php
+docker compose run --rm -e APP_ENV=testing -e RUN_ACOLHIMENTO_CONCURRENCY_TEST=true app php artisan test --compact tests/Feature/AcolhimentoConcurrencyTest.php
+```
 
 Se o volume tiver sido inicializado antes da criação do banco de teste,
 crie somente esse banco local explicitamente:

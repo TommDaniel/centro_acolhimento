@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\CreatePia;
 use App\Http\Controllers\Concerns\EmiteOficio;
 use App\Http\Requests\UpsertPiaRequest;
 use App\Models\Crianca;
 use App\Models\Pia;
 use App\Models\PiaAnexo;
+use App\Services\AcolhimentoProjection;
 use App\Services\AuditRecorder;
 use App\Services\PrivatePortraitStorage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class PiaController extends Controller
@@ -20,6 +24,8 @@ class PiaController extends Controller
     public function __construct(
         private PrivatePortraitStorage $privatePortraits,
         private AuditRecorder $audit,
+        private CreatePia $createPia,
+        private AcolhimentoProjection $acolhimentoProjection,
     ) {}
 
     public function index()
@@ -35,14 +41,9 @@ class PiaController extends Controller
     {
         $this->authorize('create', Pia::class);
 
-        // Campos necessários para o front pré-preencher os dados do acolhimento
-        // assim que a criança é selecionada — sem redigitação.
-        $criancas = Crianca::where('status', 'acolhida')->orderBy('nome_completo')
-            ->get(['id', 'nome_completo', 'data_acolhimento', 'motivo_acolhimento', 'processo_numero', 'vara', 'comarca']);
-
         return Inertia::render('Pias/Form', [
             'pia' => null,
-            'criancas' => $criancas,
+            'criancas' => $this->childrenForForm(),
             'criancaId' => (int) $request->input('crianca_id') ?: null,
         ]);
     }
@@ -52,11 +53,15 @@ class PiaController extends Controller
         $this->authorize('create', Pia::class);
 
         $dados = $request->validated();
-        $dados['created_by'] = $request->user()->id;
-        $dados['setor_id'] = $request->user()->setor_id;
         $dados['numero_oficio'] = $this->numeroOficio($request, 'pias');
 
-        $pia = Pia::create($dados);
+        try {
+            $pia = $this->createPia->handle($dados, $request->user());
+        } catch (ValidationException $exception) {
+            $exception->redirectTo($request->formRedirectUrl());
+
+            throw $exception;
+        }
 
         return redirect()->route('pias.show', $pia)
             ->with('sucesso', 'PIA registrado com sucesso.');
@@ -66,14 +71,19 @@ class PiaController extends Controller
     {
         $this->authorize('view', $pia);
 
-        $pia->load('crianca.familiares', 'criador', 'setor');
+        $pia->load('crianca.familiares', 'acolhimento', 'criador', 'setor');
         $this->withPortraitUrl($pia->crianca);
 
         return Inertia::render('Pias/Show', [
             'pia' => $pia,
             'secoes' => $pia->secoes(),
-            'identificacao' => $pia->crianca->identificacao(),
+            'identificacao' => $pia->crianca->identificacao($pia->acolhimento),
             'familiares' => $pia->crianca->familiares,
+            'legadoAConferir' => $this->acolhimentoProjection->legacyData($pia->crianca),
+            'vinculoAcolhimento' => $pia->acolhimento === null ? null : [
+                'id' => $pia->acolhimento->id,
+                'ingresso_em' => $pia->acolhimento->ingresso_em,
+            ],
         ]);
     }
 
@@ -81,12 +91,9 @@ class PiaController extends Controller
     {
         $this->authorize('update', $pia);
 
-        $criancas = Crianca::orderBy('nome_completo')
-            ->get(['id', 'nome_completo', 'data_acolhimento', 'motivo_acolhimento', 'processo_numero', 'vara', 'comarca']);
-
         return Inertia::render('Pias/Form', [
             'pia' => $pia,
-            'criancas' => $criancas,
+            'criancas' => $this->childrenForForm(),
             'criancaId' => $pia->crianca_id,
         ]);
     }
@@ -119,7 +126,7 @@ class PiaController extends Controller
     {
         $this->authorize('download', $pia);
 
-        $pia->load('crianca.familiares', 'criador', 'setor');
+        $pia->load('crianca.familiares', 'acolhimento', 'criador', 'setor');
         $portrait = $this->privatePortraits->read($pia->crianca->foto);
         $portraitForPdf = $portrait === null ? null : $this->portraitForPdf($portrait);
 
@@ -130,6 +137,8 @@ class PiaController extends Controller
             'local_oficio' => self::LOCAL_OFICIO,
             'data_extenso' => dataPorExtensoPtBr($pia->created_at),
             'portrait' => $portraitForPdf,
+            'identificacao' => $pia->crianca->identificacao($pia->acolhimento),
+            'legadoAConferir' => $this->acolhimentoProjection->legacyData($pia->crianca),
         ])
             ->setPaper('a4')
             ->stream($arquivo);
@@ -152,6 +161,12 @@ class PiaController extends Controller
                 ? route('criancas.portrait', $crianca)
                 : null,
         );
+    }
+
+    /** @return Collection<int, array<string, mixed>> */
+    private function childrenForForm(): Collection
+    {
+        return $this->acolhimentoProjection->childrenForPia();
     }
 
     /**

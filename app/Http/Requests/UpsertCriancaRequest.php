@@ -43,8 +43,8 @@ class UpsertCriancaRequest extends FormRequest
             'processo_numero' => ['nullable', 'string', 'max:100'],
             'vara' => ['nullable', 'string', 'max:255'],
             'comarca' => ['nullable', 'string', 'max:255'],
-            'data_acolhimento' => ['nullable', 'date'],
-            'motivo_acolhimento' => ['nullable', 'string'],
+            'data_acolhimento' => ['prohibited'],
+            'motivo_acolhimento' => ['prohibited'],
             'foto' => [
                 'nullable',
                 'file',
@@ -52,7 +52,7 @@ class UpsertCriancaRequest extends FormRequest
                 'max:4096',
                 'dimensions:min_width=32,min_height=32,max_width=4096,max_height=4096',
             ],
-            'status' => ['nullable', 'in:acolhida,desligada'],
+            'status' => ['prohibited'],
             'observacoes' => ['nullable', 'string'],
         ];
     }

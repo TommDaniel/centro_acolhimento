@@ -207,6 +207,11 @@ class DatabaseSeeder extends Seeder
             'status' => 'acolhida',
             'created_by' => $assistente->id,
         ]);
+        $joao->forceFill([
+            'data_acolhimento' => '2026-05-10',
+            'motivo_acolhimento' => 'Medida protetiva por situação de negligência familiar, determinada judicialmente.',
+            'status' => 'acolhida',
+        ])->saveQuietly();
 
         $joao->familiares()->createMany([
             [
@@ -257,6 +262,11 @@ class DatabaseSeeder extends Seeder
             'status' => 'acolhida',
             'created_by' => $assistente->id,
         ]);
+        $luana->forceFill([
+            'data_acolhimento' => '2025-11-02',
+            'motivo_acolhimento' => 'Abandono afetivo e desamparo familiar.',
+            'status' => 'acolhida',
+        ])->saveQuietly();
 
         $luana->familiares()->create([
             'tipo' => 'genitora',
@@ -268,7 +278,7 @@ class DatabaseSeeder extends Seeder
             'created_by' => $assistente->id,
         ]);
 
-        Crianca::create([
+        $miguel = Crianca::create([
             'nome_completo' => 'Miguel Oliveira Fictício',
             'data_nascimento' => '2017-01-30',
             'sexo' => 'Masculino',
@@ -278,6 +288,10 @@ class DatabaseSeeder extends Seeder
             'observacoes' => 'Desligamento por reintegração familiar em 10/01/2026.',
             'created_by' => $assistente->id,
         ]);
+        $miguel->forceFill([
+            'data_acolhimento' => '2024-08-15',
+            'status' => 'desligada',
+        ])->saveQuietly();
 
         Pia::create([
             'crianca_id' => $joao->id,

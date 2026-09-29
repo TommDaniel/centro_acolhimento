@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcolhimentoController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\CriancaController;
 use App\Http\Controllers\DashboardController;
@@ -19,11 +20,9 @@ Route::redirect('/', '/dashboard');
 Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/busca/{searchId?}', [SearchController::class, 'index'])
-        ->block(30, 10)
         ->middleware('sensitive.no-store')
         ->name('busca');
     Route::post('/busca', [SearchController::class, 'store'])
-        ->block(30, 10)
         ->middleware('sensitive.no-store')
         ->name('busca.search');
 
@@ -37,6 +36,12 @@ Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(f
 
     // Cadastro de crianças/adolescentes + anexos
     Route::resource('criancas', CriancaController::class);
+    Route::post('criancas/{crianca}/acolhimentos', [AcolhimentoController::class, 'store'])
+        ->name('criancas.acolhimentos.store');
+    Route::post(
+        'criancas/{crianca}/acolhimentos/{acolhimento}/movimentacoes',
+        [AcolhimentoController::class, 'storeMovement'],
+    )->scopeBindings()->name('criancas.acolhimentos.movimentacoes.store');
     Route::get('criancas/{crianca}/portrait', [CriancaController::class, 'portrait'])
         ->middleware('sensitive.no-store')
         ->name('criancas.portrait');
