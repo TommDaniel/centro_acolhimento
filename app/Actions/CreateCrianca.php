@@ -9,12 +9,15 @@ use Illuminate\Support\Facades\DB;
 
 class CreateCrianca
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private RecordCriancaInformacaoEscolar $recordSchoolInformation,
+    ) {}
 
     /** @param array<string, mixed> $attributes */
-    public function handle(array $attributes, User $actor): Crianca
+    public function handle(array $attributes, User $actor, ?array $schoolInformation = null): Crianca
     {
-        return DB::transaction(function () use ($attributes, $actor): Crianca {
+        return DB::transaction(function () use ($attributes, $actor, $schoolInformation): Crianca {
             $crianca = new Crianca($attributes);
             $crianca->created_by = $actor->id;
             $crianca->save();
@@ -26,6 +29,10 @@ class CreateCrianca
                 $crianca,
                 array_keys($attributes),
             );
+
+            if ($schoolInformation !== null) {
+                $this->recordSchoolInformation->handle($crianca, $schoolInformation, $actor);
+            }
 
             return $crianca;
         });

@@ -65,7 +65,7 @@
         "test": [
             "Composer\\Config::disableProcessTimeout",
             "@php artisan config:clear --ansi @no_additional_args",
-            "@php -d memory_limit=512M artisan test"
+            "@php -d memory_limit=512M vendor/bin/phpunit"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

@@ -54,6 +54,8 @@ class UpsertCriancaRequest extends FormRequest
             ],
             'status' => ['prohibited'],
             'observacoes' => ['nullable', 'string'],
+            'informacao_escolar' => ['nullable', 'array'],
+            ...StoreCriancaInformacaoEscolarRequest::schoolRules('informacao_escolar.', true),
         ];
     }
 

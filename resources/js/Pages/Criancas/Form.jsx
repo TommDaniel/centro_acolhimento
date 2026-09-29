@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
-    Avatar, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography,
+    Avatar, Box, Button, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography,
 } from '@mui/material';
 import { PhotoCamera as FotoIcon } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@/Components/PageHeader';
+import InformacaoEscolarFields, { informacaoEscolarVazia } from '@/Components/InformacaoEscolarFields';
 import { iniciais } from '@/utils/format';
 
 function Secao({ titulo, children }) {
@@ -29,7 +30,7 @@ function Secao({ titulo, children }) {
     );
 }
 
-export default function Form({ crianca }) {
+export default function Form({ crianca, opcoesInformacaoEscolar }) {
     const editando = Boolean(crianca);
 
     const form = useForm({
@@ -58,9 +59,11 @@ export default function Form({ crianca }) {
         comarca: crianca?.comarca ?? '',
         foto: null,
         observacoes: crianca?.observacoes ?? '',
+        informacao_escolar: null,
     });
 
     const [preview, setPreview] = useState(null);
+    const [registrarInformacaoEscolar, setRegistrarInformacaoEscolar] = useState(false);
 
     const campo = (nome) => ({
         value: form.data[nome] ?? '',
@@ -74,6 +77,24 @@ export default function Form({ crianca }) {
         form.setData('foto', arquivo);
         if (preview) URL.revokeObjectURL(preview);
         setPreview(arquivo ? URL.createObjectURL(arquivo) : null);
+    };
+
+    const alternarInformacaoEscolar = (event) => {
+        const ativo = event.target.checked;
+        setRegistrarInformacaoEscolar(ativo);
+        form.setData('informacao_escolar', ativo ? informacaoEscolarVazia() : null);
+        if (!ativo) {
+            form.clearErrors('informacao_escolar');
+        }
+    };
+
+    const alterarInformacaoEscolar = (nomeOuDados, valor) => {
+        form.setData('informacao_escolar', typeof nomeOuDados === 'object'
+            ? nomeOuDados
+            : {
+                ...form.data.informacao_escolar,
+                [nomeOuDados]: valor,
+            });
     };
 
     const enviar = (e) => {
@@ -170,6 +191,30 @@ export default function Form({ crianca }) {
                         <TextField label="Vara" {...campo('vara')} />
                         <TextField label="Comarca" {...campo('comarca')} />
                     </Secao>
+
+                    {!editando && (
+                        <Secao titulo="Educação — informação inicial opcional">
+                            <FormControlLabel
+                                sx={{ gridColumn: '1 / -1' }}
+                                control={(
+                                    <Switch
+                                        checked={registrarInformacaoEscolar}
+                                        onChange={alternarInformacaoEscolar}
+                                    />
+                                )}
+                                label="Registrar a informação escolar conhecida agora"
+                            />
+                            {registrarInformacaoEscolar && (
+                                <InformacaoEscolarFields
+                                    data={form.data.informacao_escolar}
+                                    setData={alterarInformacaoEscolar}
+                                    errors={form.errors}
+                                    errorPrefix="informacao_escolar."
+                                    opcoes={opcoesInformacaoEscolar}
+                                />
+                            )}
+                        </Secao>
+                    )}
 
                     <Secao titulo="Outros">
                         <TextField

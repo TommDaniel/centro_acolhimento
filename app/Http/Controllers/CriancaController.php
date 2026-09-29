@@ -10,9 +10,11 @@ use App\Http\Requests\UpsertCriancaRequest;
 use App\Models\Acolhimento;
 use App\Models\Crianca;
 use App\Models\CriancaDocumento;
+use App\Models\CriancaInformacaoEscolar;
 use App\Models\Familiar;
 use App\Services\AcolhimentoProjection;
 use App\Services\AuditRecorder;
+use App\Services\CriancaInformacaoEscolarHistory;
 use App\Services\CriancaSituacaoQuery;
 use App\Services\PrivatePortraitStorage;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +33,7 @@ class CriancaController extends Controller
         private AuditRecorder $audit,
         private AcolhimentoProjection $acolhimentoProjection,
         private CriancaSituacaoQuery $situacaoQuery,
+        private CriancaInformacaoEscolarHistory $schoolInformationHistory,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
@@ -100,14 +103,20 @@ class CriancaController extends Controller
     {
         $this->authorize('create', Crianca::class);
 
-        return Inertia::render('Criancas/Form', ['crianca' => null]);
+        return Inertia::render('Criancas/Form', [
+            'crianca' => null,
+            'opcoesInformacaoEscolar' => $this->schoolInformationOptions(),
+        ]);
     }
 
     public function store(UpsertCriancaRequest $request)
     {
         $this->authorize('create', Crianca::class);
 
-        $dados = $request->safe()->except('foto');
+        $validated = $request->validated();
+        $schoolInformation = $validated['informacao_escolar'] ?? null;
+        unset($validated['foto'], $validated['informacao_escolar']);
+        $dados = $validated;
         $storedPhoto = null;
 
         if ($request->hasFile('foto')) {
@@ -116,7 +125,7 @@ class CriancaController extends Controller
         }
 
         try {
-            $crianca = $this->createCrianca->handle($dados, $request->user());
+            $crianca = $this->createCrianca->handle($dados, $request->user(), $schoolInformation);
         } catch (Throwable $exception) {
             $this->privatePortraits->deleteFailedWrite($storedPhoto);
 
@@ -145,6 +154,8 @@ class CriancaController extends Controller
             ->get();
         $currentEpisode = $acolhimentos->last();
         $currentMovement = $currentEpisode?->movimentacoes->last();
+        $currentSchoolInformation = $this->schoolInformationHistory->current($crianca)?->load('criador:id,name');
+        $schoolHistory = $this->schoolInformationHistory->initialPage($crianca, $currentSchoolInformation);
 
         $this->audit->record('crianca.viewed', 'success', $request->user(), $crianca);
 
@@ -212,6 +223,11 @@ class CriancaController extends Controller
                 'origens' => Acolhimento::ORIGENS,
                 'orgaos_condutores' => Acolhimento::ORGAOS_CONDUTORES,
             ],
+            'informacaoEscolarAtual' => $currentSchoolInformation === null
+                ? null
+                : $this->schoolInformationHistory->serialize($currentSchoolInformation),
+            'historicoInformacaoEscolar' => $schoolHistory,
+            'opcoesInformacaoEscolar' => $this->schoolInformationOptions(),
         ]);
     }
 
@@ -221,7 +237,10 @@ class CriancaController extends Controller
 
         $this->withPortraitUrl($crianca);
 
-        return Inertia::render('Criancas/Form', compact('crianca'));
+        return Inertia::render('Criancas/Form', [
+            'crianca' => $crianca,
+            'opcoesInformacaoEscolar' => $this->schoolInformationOptions(),
+        ]);
     }
 
     public function update(UpsertCriancaRequest $request, Crianca $crianca)
@@ -333,5 +352,16 @@ class CriancaController extends Controller
                 ? route('criancas.portrait', $crianca)
                 : null,
         );
+    }
+
+    /** @return array<string, array<string, string>> */
+    private function schoolInformationOptions(): array
+    {
+        return [
+            'situacoes' => CriancaInformacaoEscolar::SITUACOES,
+            'redes' => CriancaInformacaoEscolar::REDES,
+            'turnos' => CriancaInformacaoEscolar::TURNOS,
+            'fontes' => CriancaInformacaoEscolar::FONTES,
+        ];
     }
 }

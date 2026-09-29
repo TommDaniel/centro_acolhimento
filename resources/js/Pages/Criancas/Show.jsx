@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
-    Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent,
-    DialogTitle, Divider, IconButton, MenuItem, Stack, TextField, Typography,
+    Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent,
+    Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton,
+    MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import {
     Add as AddIcon,
     Edit as EditIcon,
+    ExpandMore as ExpandMoreIcon,
+    School as SchoolIcon,
     PictureAsPdf as PdfIcon,
     Visibility as VerIcon,
 } from '@mui/icons-material';
@@ -16,6 +19,10 @@ import AcolhimentoPanel from '@/Components/AcolhimentoPanel';
 import CriancaAvatar from '@/Components/CriancaAvatar';
 import DocMeta from '@/Components/DocMeta';
 import EmptyState from '@/Components/EmptyState';
+import InformacaoEscolarFields, {
+    informacaoEscolarVazia,
+    novaChaveIdempotencia,
+} from '@/Components/InformacaoEscolarFields';
 import KvList from '@/Components/KvList';
 import StatusChip from '@/Components/StatusChip';
 import { fmtData, fmtDataHora } from '@/utils/format';
@@ -107,6 +114,229 @@ function CartaoDocumentos({ titulo, itens, hrefNovo, dataDe, chipDe, rotaShow, r
     );
 }
 
+function dadosInformacaoEscolar(informacao, mostrarAusentes = false) {
+    if (!informacao) return {};
+
+    const dados = {
+        'Situação': informacao.situacao_complemento
+            ? `${informacao.situacao}: ${informacao.situacao_complemento}`
+            : informacao.situacao,
+        'Escola': informacao.escola_nome,
+        'Rede': informacao.rede_complemento
+            ? `${informacao.rede}: ${informacao.rede_complemento}`
+            : informacao.rede,
+        'Matrícula': informacao.matricula,
+        'Ano / série': informacao.ano_serie,
+        'Turma': informacao.turma,
+        'Turno': informacao.turno_complemento
+            ? `${informacao.turno}: ${informacao.turno_complemento}`
+            : informacao.turno,
+        'Vigente em': informacao.vigente_em ? fmtData(informacao.vigente_em) : null,
+        'Fonte': informacao.fonte_complemento
+            ? `${informacao.fonte}: ${informacao.fonte_complemento}`
+            : informacao.fonte,
+    };
+
+    if (!mostrarAusentes) return dados;
+
+    return Object.fromEntries(
+        Object.entries(dados).map(([rotulo, valor]) => [rotulo, valor || 'Não informado']),
+    );
+}
+
+function InformacaoEscolarPanel({ criancaId, atual, historico, opcoes }) {
+    const [dialogAberto, setDialogAberto] = useState(false);
+    const [versoes, setVersoes] = useState(historico.data);
+    const [temMais, setTemMais] = useState(historico.tem_mais);
+    const [proximoAntesDe, setProximoAntesDe] = useState(historico.proximo_antes_de);
+    const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+    const [erroHistorico, setErroHistorico] = useState(false);
+    const form = useForm(informacaoEscolarVazia());
+
+    useEffect(() => {
+        setVersoes(historico.data);
+        setTemMais(historico.tem_mais);
+        setProximoAntesDe(historico.proximo_antes_de);
+        setErroHistorico(false);
+    }, [historico]);
+
+    const abrirAtualizacao = () => {
+        const novosDados = informacaoEscolarVazia();
+        if (atual) {
+            Object.keys(novosDados).forEach((campo) => {
+                if (campo !== 'idempotency_key' && atual[campo] !== null && atual[campo] !== undefined) {
+                    novosDados[campo] = atual[campo];
+                }
+            });
+        }
+        novosDados.idempotency_key = novaChaveIdempotencia();
+        form.setData(novosDados);
+        form.clearErrors();
+        setDialogAberto(true);
+    };
+
+    const fechar = () => {
+        if (!form.processing) {
+            setDialogAberto(false);
+            form.clearErrors();
+        }
+    };
+
+    const enviar = (event) => {
+        event.preventDefault();
+        form.post(route('criancas.informacoes-escolares.store', criancaId), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setDialogAberto(false);
+                form.reset();
+            },
+        });
+    };
+
+    const carregarMais = async () => {
+        if (carregandoHistorico || !temMais || !proximoAntesDe) return;
+
+        setCarregandoHistorico(true);
+        setErroHistorico(false);
+
+        try {
+            const response = await window.fetch(route('criancas.informacoes-escolares.index', {
+                crianca: criancaId,
+                before_id: proximoAntesDe,
+            }), {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) throw new Error('Falha ao carregar o histórico escolar.');
+
+            const page = await response.json();
+            setVersoes((anteriores) => [...anteriores, ...page.data]);
+            setTemMais(page.tem_mais);
+            setProximoAntesDe(page.proximo_antes_de);
+        } catch {
+            setErroHistorico(true);
+        } finally {
+            setCarregandoHistorico(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                    <SchoolIcon color="primary" />
+                    <Typography variant="h6" sx={{ flex: 1 }}>Educação</Typography>
+                    <Button size="small" variant="outlined" onClick={abrirAtualizacao} startIcon={<AddIcon />}>
+                        {atual ? 'Registrar atualização' : 'Registrar informação'}
+                    </Button>
+                </Box>
+
+                {atual === null ? (
+                    <EmptyState titulo="Nenhuma informação escolar registrada." />
+                ) : (
+                    <Stack spacing={1.5}>
+                        <Alert severity={atual.situacao_codigo === 'nao_informada' ? 'warning' : 'info'}>
+                            Estado atual: <strong>{atual.situacao}</strong>
+                        </Alert>
+                        <KvList dados={dadosInformacaoEscolar(atual)} />
+                        <Typography variant="caption" color="text.secondary">
+                            Registrado por {atual.registrado_por ?? '—'} em {fmtDataHora(atual.registrado_em)}.
+                        </Typography>
+                    </Stack>
+                )}
+
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Histórico de versões</Typography>
+                {versoes.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                        Nenhuma versão anterior.
+                    </Typography>
+                ) : (
+                    <Stack spacing={1}>
+                        {versoes.map((versao) => (
+                            <Accordion key={versao.id} disableGutters variant="outlined">
+                                <AccordionSummary
+                                    expandIcon={<ExpandMoreIcon />}
+                                    aria-controls={`school-history-${versao.id}-content`}
+                                    id={`school-history-${versao.id}-header`}
+                                >
+                                    <Box sx={{ width: '100%', pr: 1 }}>
+                                        <Stack direction={{ xs: 'column', sm: 'row' }} gap={0.5} justifyContent="space-between">
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                {versao.situacao_complemento
+                                                    ? `${versao.situacao}: ${versao.situacao_complemento}`
+                                                    : versao.situacao}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {fmtDataHora(versao.registrado_em)} · {versao.registrado_por ?? '—'}
+                                            </Typography>
+                                        </Stack>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Ver todos os campos desta versão
+                                        </Typography>
+                                    </Box>
+                                </AccordionSummary>
+                                <AccordionDetails id={`school-history-${versao.id}-content`}>
+                                    <KvList dados={dadosInformacaoEscolar(versao, true)} />
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.5 }}>
+                                        Registrado por {versao.registrado_por ?? '—'} em {fmtDataHora(versao.registrado_em)}.
+                                    </Typography>
+                                </AccordionDetails>
+                            </Accordion>
+                        ))}
+                    </Stack>
+                )}
+                {erroHistorico && (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                        Não foi possível carregar versões anteriores. Tente novamente.
+                    </Alert>
+                )}
+                {temMais && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                        <Button variant="outlined" onClick={carregarMais} disabled={carregandoHistorico}>
+                            {carregandoHistorico ? 'Carregando…' : 'Carregar versões anteriores'}
+                        </Button>
+                    </Box>
+                )}
+            </CardContent>
+
+            <Dialog open={dialogAberto} onClose={fechar} maxWidth="md" fullWidth>
+                <Box component="form" onSubmit={enviar}>
+                    <DialogTitle>Registrar nova versão da informação escolar</DialogTitle>
+                    <DialogContent>
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                                gap: 2,
+                                pt: 1,
+                            }}
+                        >
+                            <InformacaoEscolarFields
+                                data={form.data}
+                                setData={form.setData}
+                                errors={form.errors}
+                                opcoes={opcoes}
+                            />
+                        </Box>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 2 }}>
+                        <Button onClick={fechar} color="inherit" disabled={form.processing}>Cancelar</Button>
+                        <Button type="submit" variant="contained" disabled={form.processing}>
+                            {form.processing ? 'Salvando…' : 'Salvar nova versão'}
+                        </Button>
+                    </DialogActions>
+                </Box>
+            </Dialog>
+        </Card>
+    );
+}
+
 export default function Show({
     crianca,
     identificacao,
@@ -115,6 +345,9 @@ export default function Show({
     linhaDoTempoAcolhimento,
     legadoAConferir,
     opcoesAcolhimento,
+    informacaoEscolarAtual,
+    historicoInformacaoEscolar,
+    opcoesInformacaoEscolar,
 }) {
     const podeAlterar = () => true;
 
@@ -271,6 +504,13 @@ export default function Show({
                     linhaDoTempo={linhaDoTempoAcolhimento}
                     legadoAConferir={legadoAConferir}
                     opcoes={opcoesAcolhimento}
+                />
+
+                <InformacaoEscolarPanel
+                    criancaId={crianca.id}
+                    atual={informacaoEscolarAtual}
+                    historico={historicoInformacaoEscolar}
+                    opcoes={opcoesInformacaoEscolar}
                 />
 
                 <Card>

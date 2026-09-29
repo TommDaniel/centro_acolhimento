@@ -86,6 +86,11 @@ class Crianca extends Model
         return $this->hasMany(Acolhimento::class)->orderBy('ingresso_em')->orderBy('id');
     }
 
+    public function informacoesEscolares(): HasMany
+    {
+        return $this->hasMany(CriancaInformacaoEscolar::class);
+    }
+
     public function ultimoAcolhimento(): HasOne
     {
         return $this->hasOne(Acolhimento::class)->ofMany([

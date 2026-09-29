@@ -46,7 +46,9 @@ class AuthorizationPolicyMatrixTest extends TestCase
         $technical = User::factory()->create();
         $administrator = User::factory()->administrator()->create();
         $inactive = User::factory()->inactive()->create();
-        $subject = new $resource;
+        $subject = $resource === Crianca::class
+            ? Crianca::query()->create(['nome_completo' => 'Pessoa da Matriz de Autorização Fictícia'])
+            : new $resource;
 
         foreach ([$technical, $administrator] as $activeUser) {
             foreach ($classAbilities as $ability) {

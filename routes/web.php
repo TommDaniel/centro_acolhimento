@@ -3,6 +3,7 @@
 use App\Http\Controllers\AcolhimentoController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\CriancaController;
+use App\Http\Controllers\CriancaInformacaoEscolarController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EquipeController;
 use App\Http\Controllers\EventoController;
@@ -36,6 +37,11 @@ Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(f
 
     // Cadastro de crianças/adolescentes + anexos
     Route::resource('criancas', CriancaController::class);
+    Route::get('criancas/{crianca}/informacoes-escolares', [CriancaInformacaoEscolarController::class, 'index'])
+        ->middleware('sensitive.no-store')
+        ->name('criancas.informacoes-escolares.index');
+    Route::post('criancas/{crianca}/informacoes-escolares', [CriancaInformacaoEscolarController::class, 'store'])
+        ->name('criancas.informacoes-escolares.store');
     Route::post('criancas/{crianca}/acolhimentos', [AcolhimentoController::class, 'store'])
         ->name('criancas.acolhimentos.store');
     Route::post(
