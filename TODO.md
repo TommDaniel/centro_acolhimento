@@ -798,6 +798,7 @@ Manter **Laravel + React/Inertia como monólito modular** nesta fase. A stack at
   - Atualizações programadas de Composer/NPM, análise de dependências/SBOM, patches críticos e revisão do runtime PHP não oficial usado no deploy atual.
   - Fixar versões via lockfiles e testar atualização em staging.
   - Evidência em 26/08/2026: `composer audit --locked` encontrou advisories HIGH/MEDIUM em `league/commonmark` anterior a 2.9.0; `npm audit --audit-level=high` encontrou HIGH em `nanoid` anterior a 3.3.18 e MODERATE em `postcss` até 8.5.22. Atualizações dependem da avaliação de compatibilidade e do fluxo de dependência de `RTK.md`; este registro não autoriza alteração de pacote.
+  - Patch autorizado em 29/09/2026: lockfile atualizou somente `laravel/framework` 13.20.0 → 13.30.0 e `league/flysystem` 3.35.2 → 3.35.3, sem pacote novo ou mudança de esquema. `composer audit --locked` e `npm audit --audit-level=high` ficaram sem avisos; suíte PostgreSQL integral 264 testes/3.420 asserções (7 skips esperados) e E2E 8/8 em desktop/celular passaram nas versões corrigidas. A limpeza do cache gerado de views foi necessária para testes locais após o upgrade; o ambiente E2E real subiu sem override. Este patch não conclui o trabalho recorrente de `OPS-03` nem substitui validação de staging/produção.
   - Aceite: não há vulnerabilidade crítica conhecida sem exceção formal, prazo e mitigação.
 
 ## 8. Estratégia de testes e definição de pronto
