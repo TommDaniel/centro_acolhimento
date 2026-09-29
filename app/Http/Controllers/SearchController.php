@@ -6,7 +6,7 @@ use App\Enums\CriancaSituacaoFiltro;
 use App\Http\Requests\StoreProtectedSearchRequest;
 use App\Models\Crianca;
 use App\Services\AuditRecorder;
-use App\Services\CriancaSituacaoQuery;
+use App\Services\ProtectedSearchQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -23,7 +23,7 @@ class SearchController extends Controller
 
     public function __construct(
         private AuditRecorder $audit,
-        private CriancaSituacaoQuery $situacaoQuery,
+        private ProtectedSearchQuery $searchQuery,
     ) {}
 
     public function store(StoreProtectedSearchRequest $request): RedirectResponse
@@ -105,49 +105,8 @@ class SearchController extends Controller
             return redirect()->route('busca', status: 303);
         }
 
-        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search['term']).'%';
-
-        $scopedChildren = $this->situacaoQuery->scopedChildren()
-            ->where(function ($where) use ($like) {
-                $where->where('nome_completo', 'like', $like)
-                    ->orWhere('nome_social', 'like', $like)
-                    ->orWhere('processo_numero', 'like', $like)
-                    ->orWhere('rg', 'like', $like)
-                    ->orWhere('cpf', 'like', $like)
-                    ->orWhere('nome_mae', 'like', $like)
-                    ->orWhere('nome_pai', 'like', $like)
-                    ->orWhere('responsavel_legal', 'like', $like);
-            });
-        $counts = $this->situacaoQuery->counts($scopedChildren);
-        $query = $this->situacaoQuery->filter($scopedChildren, $situacao)
-            ->select([
-                'id', 'nome_completo', 'data_nascimento', 'processo_numero',
-                'data_acolhimento', 'motivo_acolhimento', 'status',
-            ])
-            ->withCount(['pias', 'reports', 'visitasTecnicas', 'pertences'])
-            ->orderBy('nome_completo')
-            ->orderBy('id');
-        $this->situacaoQuery->addProjection($query);
-
-        $criancas = $query
-            ->paginate(15)
-            ->appends(['situacao' => $situacao->value])
-            ->through(function (Crianca $crianca): array {
-                $projection = $this->situacaoQuery->summary($crianca);
-
-                return [
-                    'id' => $crianca->id,
-                    'nome_completo' => $crianca->nome_completo,
-                    'data_nascimento' => $crianca->data_nascimento?->toDateString(),
-                    'processo_numero' => $crianca->processo_numero,
-                    'acolhimento_situacao' => $projection['acolhimento_situacao'],
-                    'acolhimento_fonte' => $projection['acolhimento_fonte'],
-                    'pias_count' => (int) $crianca->pias_count,
-                    'reports_count' => (int) $crianca->reports_count,
-                    'visitas_tecnicas_count' => (int) $crianca->visitas_tecnicas_count,
-                    'pertences_count' => (int) $crianca->pertences_count,
-                ];
-            })
+        $results = $this->searchQuery->search($search['term'], $situacao);
+        $criancas = $results['criancas']
             ->withPath(route('busca', ['searchId' => $searchId]));
 
         $filtrosSituacao = array_map(
@@ -158,7 +117,7 @@ class SearchController extends Controller
                     'situacao' => $option['value'],
                 ]),
             ],
-            $this->situacaoQuery->options($counts),
+            $results['filtros'],
         );
 
         $this->audit->record('search.executed', 'success', $request->user());

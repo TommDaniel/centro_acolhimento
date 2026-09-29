@@ -72,6 +72,13 @@ class SearchPrivacyTest extends TestCase
                 ->where('criancas.data.0.reports_count', 1)
                 ->where('criancas.data.0.visitas_tecnicas_count', 1)
                 ->where('criancas.data.0.pertences_count', 1)
+                ->where('criancas.data.0.fontes_busca', [[
+                    'tipo' => 'identificacao',
+                    'rotulo' => 'Identificação',
+                    'detalhe' => null,
+                    'atualizado_em' => $child->updated_at?->toIso8601String(),
+                    'atualizado_por' => null,
+                ]])
                 ->missingAll([
                     'criancas.data.0.nome_social',
                     'criancas.data.0.sexo',
@@ -131,6 +138,7 @@ class SearchPrivacyTest extends TestCase
             'reports_count',
             'visitas_tecnicas_count',
             'pertences_count',
+            'fontes_busca',
         ], array_keys($childProps));
 
         $this->assertStringContainsString($searchId, $page['url']);

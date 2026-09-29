@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
-import { Box, Button, Chip, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, Divider, InputAdornment, Stack, TextField, Typography } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import AppLayout from '@/Layouts/AppLayout';
 import CriancaCard from '@/Components/CriancaCard';
 import EmptyState from '@/Components/EmptyState';
 import Paginacao from '@/Components/Paginacao';
 import SituacaoFilter from '@/Components/SituacaoFilter';
+import { fmtDataHora } from '@/utils/format';
 
 export default function Busca({ criancas, situacao, filtrosSituacao }) {
     const [valor, setValor] = useState('');
@@ -47,6 +48,33 @@ export default function Busca({ criancas, situacao, filtrosSituacao }) {
                 <Chip size="small" variant="outlined" label={`Visitas: ${crianca.visitas_tecnicas_count ?? 0}`} />
                 <Chip size="small" variant="outlined" label={`Pertences: ${crianca.pertences_count ?? 0}`} />
             </Stack>
+            <Divider sx={{ my: 1 }} />
+            <Stack spacing={0.75} aria-label="Fontes do resultado">
+                {(crianca.fontes_busca ?? []).map((fonte) => (
+                    <Box key={fonte.tipo}>
+                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 700 }}>
+                            Fonte: {fonte.rotulo}
+                        </Typography>
+                        {fonte.detalhe && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                {fonte.detalhe}
+                            </Typography>
+                        )}
+                        {fonte.atualizado_em && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                Atualizado{fonte.atualizado_por ? ` por ${fonte.atualizado_por}` : ''}
+                                {' em '}{fmtDataHora(fonte.atualizado_em)}
+                            </Typography>
+                        )}
+                        {fonte.criado_em && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                Criado{fonte.criado_por ? ` por ${fonte.criado_por}` : ''}
+                                {' em '}{fmtDataHora(fonte.criado_em)}
+                            </Typography>
+                        )}
+                    </Box>
+                ))}
+            </Stack>
         </Box>
     );
 
@@ -69,8 +97,11 @@ export default function Busca({ criancas, situacao, filtrosSituacao }) {
                     autoFocus
                     value={valor}
                     onChange={(e) => setValor(e.target.value)}
-                    placeholder="Nome, nº do processo, RG, CPF ou nome dos pais..."
+                    placeholder="Nome, processo, escola, tipo, título ou nº de documento..."
                     slotProps={{
+                        htmlInput: {
+                            'aria-label': 'Buscar por identificação, escola ou documento',
+                        },
                         input: {
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -109,7 +140,7 @@ export default function Busca({ criancas, situacao, filtrosSituacao }) {
                 <EmptyState
                     icone={SearchIcon}
                     titulo="Busca rápida"
-                    mensagem="Encontre uma criança pelo nome, nº do processo, RG, CPF ou nome dos pais."
+                    mensagem="Encontre a ficha por identificação, informação escolar atual ou metadados de documento."
                 />
             )}
 

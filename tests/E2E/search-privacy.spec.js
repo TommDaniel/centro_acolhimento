@@ -180,7 +180,9 @@ test.describe('privacidade da busca autorizada', () => {
         expect(probeReferrer).not.toContain(encodeURIComponent(nameTerm));
 
         await page.goto('/busca');
-        const pageSearch = page.getByPlaceholder('Nome, nº do processo, RG, CPF ou nome dos pais...');
+        const pageSearch = page.getByRole('textbox', {
+            name: 'Buscar por identificação, escola ou documento',
+        });
         await expect(pageSearch).toBeVisible();
 
         const processTerm = '1234567-89.2026.8.24.0000';
@@ -212,10 +214,17 @@ test.describe('privacidade da busca autorizada', () => {
         test.setTimeout(180_000);
         const credentials = credentialsByProjectAndScenario[testInfo.project.name].normal;
         const childName = `Pessoa Filtro ${testInfo.project.name} Inteiramente Fictícia`;
+        const schoolName = `Escola Busca ${testInfo.project.name} Inteiramente Fictícia`;
 
         await loginWithMfa(page, credentials);
         await page.goto('/criancas/create');
         await page.getByLabel('Nome completo *').fill(childName);
+        await page.getByRole('switch', { name: 'Registrar a informação escolar conhecida agora' }).check();
+        await page.getByRole('combobox', { name: 'Situação escolar', exact: true }).click();
+        await page.getByRole('option', { name: 'Matriculada', exact: true }).click();
+        await page.getByRole('textbox', { name: 'Escola', exact: true }).fill(schoolName);
+        await page.getByRole('combobox', { name: 'Fonte da informação', exact: true }).click();
+        await page.getByRole('option', { name: 'Documento', exact: true }).click();
         await Promise.all([
             page.waitForURL(/\/criancas\/\d+$/),
             page.getByRole('button', { name: 'Cadastrar' }).click(),
@@ -252,6 +261,25 @@ test.describe('privacidade da busca autorizada', () => {
         });
         await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}\?situacao=sem_ingresso$/);
         await expect(page.getByRole('link', { name: new RegExp(childName) }).first()).toBeVisible();
+        expect(page.url()).not.toContain(childName);
+
+        await page.goto('/busca');
+        const contextualSearch = page.getByRole('textbox', {
+            name: 'Buscar por identificação, escola ou documento',
+        });
+        const { resultPayload: schoolPayload } = await submitSearch(page, contextualSearch, schoolName);
+        const schoolResult = schoolPayload.props.criancas.data.find(
+            (result) => result.nome_completo === childName,
+        );
+        expect(schoolResult).toBeDefined();
+        expect(schoolResult.fontes_busca[0]).toMatchObject({
+            tipo: 'escola_atual',
+            rotulo: 'Informação escolar atual',
+        });
+        await expect(page.getByText('Fonte: Informação escolar atual').first()).toBeVisible();
+        await expect(page.getByText(new RegExp(schoolName)).first()).toBeVisible();
+        await expect(page.getByRole('link', { name: new RegExp(childName) }).first()).toBeVisible();
+        expect(page.url()).not.toContain(schoolName);
 
         await page.getByRole('link', { name: /Internados: 0/ }).click();
         await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}\?situacao=internados$/);

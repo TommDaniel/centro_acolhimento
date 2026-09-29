@@ -44,12 +44,13 @@ class PertenceController extends Controller
         $this->authorize('create', Pertence::class);
 
         $dados = $this->validar($request);
-        $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
         $dados['numero_oficio'] = $this->numeroOficio($request, 'pertences');
         $dados['itens'] = $this->montarItens($request);
 
-        $pertence = Pertence::create($dados);
+        $pertence = new Pertence($dados);
+        $pertence->created_by = $request->user()->id;
+        $pertence->save();
 
         return redirect()->route('pertences.show', $pertence)
             ->with('sucesso', 'Termo de pertences registrado com sucesso.');

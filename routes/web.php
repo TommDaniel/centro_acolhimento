@@ -36,7 +36,8 @@ Route::middleware(['auth', 'auth.session', 'mfa.verified', 'approved'])->group(f
     Route::delete('agenda/{evento}', [EventoController::class, 'destroy'])->name('agenda.destroy');
 
     // Cadastro de crianças/adolescentes + anexos
-    Route::resource('criancas', CriancaController::class);
+    Route::resource('criancas', CriancaController::class)
+        ->middlewareFor('show', 'sensitive.no-store');
     Route::get('criancas/{crianca}/informacoes-escolares', [CriancaInformacaoEscolarController::class, 'index'])
         ->middleware('sensitive.no-store')
         ->name('criancas.informacoes-escolares.index');

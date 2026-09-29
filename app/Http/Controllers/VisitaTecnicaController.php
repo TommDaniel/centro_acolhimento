@@ -44,11 +44,12 @@ class VisitaTecnicaController extends Controller
         $this->authorize('create', VisitaTecnica::class);
 
         $dados = $this->validar($request);
-        $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
         $dados['numero_oficio'] = $this->numeroOficio($request, 'visitas_tecnicas');
 
-        $visita = VisitaTecnica::create($dados);
+        $visita = new VisitaTecnica($dados);
+        $visita->created_by = $request->user()->id;
+        $visita->save();
 
         return redirect()->route('visitas-tecnicas.show', $visita)
             ->with('sucesso', 'Visita técnica registrada com sucesso.');

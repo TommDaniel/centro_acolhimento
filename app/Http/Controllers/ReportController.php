@@ -43,11 +43,12 @@ class ReportController extends Controller
         $this->authorize('create', Report::class);
 
         $dados = $this->validar($request);
-        $dados['created_by'] = $request->user()->id;
         $dados['setor_id'] = $request->user()->setor_id;
         $dados['numero_oficio'] = $this->numeroOficio($request, 'reports');
 
-        $report = Report::create($dados);
+        $report = new Report($dados);
+        $report->created_by = $request->user()->id;
+        $report->save();
 
         return redirect()->route('reports.show', $report)
             ->with('sucesso', 'Relatório de ocorrência registrado com sucesso.');
