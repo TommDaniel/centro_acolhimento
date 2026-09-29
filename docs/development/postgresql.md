@@ -65,8 +65,8 @@ configuração com valor diferente também é rejeitado; não use `config:cache`
 suítes locais ou na CI.
 
 ```bash
-docker compose run --rm app php artisan test --testsuite=Unit
-docker compose run --rm app php artisan test --testsuite=Feature
+docker compose run --rm app php -d memory_limit=512M artisan test --testsuite=Unit
+docker compose run --rm app php -d memory_limit=512M artisan test --testsuite=Feature
 docker compose --profile e2e up --build --force-recreate --abort-on-container-exit --exit-code-from playwright-e2e playwright-e2e
 ```
 

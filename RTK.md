@@ -112,7 +112,7 @@ Execute no ambiente disponível. Playwright sempre usa a versão do lockfile por
 composer validate --strict
 composer audit --locked
 vendor/bin/pint --test
-php artisan test
+php -d memory_limit=512M artisan test
 npm audit --audit-level=high
 npm run build
 npm run test:e2e

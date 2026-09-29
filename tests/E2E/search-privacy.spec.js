@@ -97,7 +97,10 @@ async function submitSearch(page, input, term) {
 
     const resultPayload = await resultsResponse.json();
     expect(resultPayload.props).not.toHaveProperty('q');
-    expect(resultPayload.url).toMatch(/^\/busca\/[a-zA-Z0-9]{64}$/);
+    expect(resultPayload.url).toMatch(/^\/busca\/[a-zA-Z0-9]{64}(?:\?situacao=[a-z_]+)?$/);
+
+    const resultUrl = new URL(resultsResponse.url());
+    expect([...resultUrl.searchParams.keys()].every((key) => key === 'situacao')).toBe(true);
 
     return { resultPayload, submissionResponse };
 }
@@ -141,8 +144,8 @@ test.describe('privacidade da busca autorizada', () => {
         await expect(page.getByRole('link', { name: new RegExp(nameTerm) }).first()).toBeVisible();
 
         const searchLocation = submissionResponse.headers().location;
-        expect(searchLocation).toMatch(/\/busca\/[a-zA-Z0-9]{64}$/);
-        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}$/);
+        expect(searchLocation).toMatch(/\/busca\/[a-zA-Z0-9]{64}(?:\?situacao=todos)?$/);
+        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}(?:\?situacao=todos)?$/);
         expect(page.url()).not.toContain(nameTerm);
         expect(page.url()).not.toContain(encodeURIComponent(nameTerm));
 
@@ -151,7 +154,7 @@ test.describe('privacidade da busca autorizada', () => {
         await expect(indexSearch).toBeVisible();
         const { resultPayload: indexPayload } = await submitSearch(page, indexSearch, nameTerm);
         expect(indexPayload.props.criancas.total).toBe(1);
-        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}$/);
+        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}(?:\?situacao=todos)?$/);
         expect(page.url()).not.toContain(nameTerm);
         expect(page.url()).not.toContain(encodeURIComponent(nameTerm));
 
@@ -203,6 +206,58 @@ test.describe('privacidade da busca autorizada', () => {
                 expect(request.referrer).not.toContain(encodedTerm);
             }
         }
+    });
+
+    test('filtros de situação preservam busca opaca, teclado, histórico e estado vazio', async ({ page }, testInfo) => {
+        test.setTimeout(180_000);
+        const credentials = credentialsByProjectAndScenario[testInfo.project.name].normal;
+        const childName = `Pessoa Filtro ${testInfo.project.name} Inteiramente Fictícia`;
+
+        await loginWithMfa(page, credentials);
+        await page.goto('/criancas/create');
+        await page.getByLabel('Nome completo *').fill(childName);
+        await Promise.all([
+            page.waitForURL(/\/criancas\/\d+$/),
+            page.getByRole('button', { name: 'Cadastrar' }).click(),
+        ]);
+
+        await page.goto('/criancas?situacao=sem_ingresso');
+        const withoutAdmission = page.getByRole('link', { name: /Sem ingresso: \d+/ });
+        await expect(withoutAdmission).toHaveAttribute('aria-current', 'page');
+        await expect(page.getByRole('link', { name: new RegExp(childName) }).first()).toBeVisible();
+
+        const legacy = page.getByRole('link', { name: /A conferir: \d+/ });
+        await legacy.focus();
+        await legacy.press('Enter');
+        await expect(page).toHaveURL(/\/criancas\?situacao=a_conferir$/);
+        await expect(page.getByText('João Pedro da Silva Fictício', { exact: true })).toBeVisible();
+        await expect(page.getByText(childName, { exact: true })).toHaveCount(0);
+
+        await page.goBack();
+        await expect(page).toHaveURL(/\/criancas\?situacao=sem_ingresso$/);
+        await expect(page.getByRole('link', { name: new RegExp(childName) }).first()).toBeVisible();
+
+        await page.route(/\/criancas\?situacao=internados$/, async (route) => {
+            await route.abort('failed');
+        }, { times: 1 });
+        await page.getByRole('link', { name: /Internados: \d+/ }).click();
+        await expect(page.getByRole('alert')).toContainText('Não foi possível aplicar o filtro');
+        await expect(page).toHaveURL(/\/criancas\?situacao=sem_ingresso$/);
+
+        const indexSearch = page.getByLabel('Buscar criança ou adolescente');
+        const { submissionResponse } = await submitSearch(page, indexSearch, childName);
+        expect(submissionResponse.request().postDataJSON()).toMatchObject({
+            q: childName,
+            situacao: 'sem_ingresso',
+        });
+        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}\?situacao=sem_ingresso$/);
+        await expect(page.getByRole('link', { name: new RegExp(childName) }).first()).toBeVisible();
+
+        await page.getByRole('link', { name: /Internados: 0/ }).click();
+        await expect(page).toHaveURL(/\/busca\/[a-zA-Z0-9]{64}\?situacao=internados$/);
+        await expect(page.getByText('Nenhum cadastro nesta situação')).toBeVisible();
+        expect(page.url()).not.toContain(childName);
+        expect(page.url()).not.toContain(encodeURIComponent(childName));
     });
 
     test('submissões paralelas preservam cada handle dentro do limite da sessão', async ({ page }, testInfo) => {

@@ -7,9 +7,12 @@ import AppLayout from '@/Layouts/AppLayout';
 import CriancaCard from '@/Components/CriancaCard';
 import EmptyState from '@/Components/EmptyState';
 import Paginacao from '@/Components/Paginacao';
+import SituacaoFilter from '@/Components/SituacaoFilter';
 
-export default function Busca({ criancas }) {
+export default function Busca({ criancas, situacao, filtrosSituacao }) {
     const [valor, setValor] = useState('');
+    const [filtroCarregando, setFiltroCarregando] = useState(false);
+    const [filtroErro, setFiltroErro] = useState(false);
 
     const enviar = (e) => {
         e.preventDefault();
@@ -20,7 +23,11 @@ export default function Busca({ criancas }) {
             return;
         }
 
-        router.post(route('busca.search'), { q: termo }, { preserveState: true });
+        router.post(
+            route('busca.search'),
+            { q: termo, situacao },
+            { preserveState: true },
+        );
     };
 
     const extras = (crianca) => (
@@ -83,6 +90,21 @@ export default function Busca({ criancas }) {
                 </Button>
             </Box>
 
+            {filtrosSituacao.length > 0 && (
+                <SituacaoFilter
+                    options={filtrosSituacao}
+                    active={situacao}
+                    loading={filtroCarregando}
+                    error={filtroErro}
+                    onStart={() => {
+                        setFiltroErro(false);
+                        setFiltroCarregando(true);
+                    }}
+                    onFinish={() => setFiltroCarregando(false)}
+                    onError={() => setFiltroErro(true)}
+                />
+            )}
+
             {criancas === null && (
                 <EmptyState
                     icone={SearchIcon}
@@ -93,8 +115,8 @@ export default function Busca({ criancas }) {
 
             {criancas !== null && criancas.data.length === 0 && (
                 <EmptyState
-                    titulo="Nenhuma criança encontrada"
-                    mensagem="Tente outro termo."
+                    titulo="Nenhum cadastro nesta situação"
+                    mensagem="Tente outro termo ou escolha outro filtro."
                 />
             )}
 

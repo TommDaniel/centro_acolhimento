@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CriancaSituacaoFiltro;
+use App\Http\Requests\StoreProtectedSearchRequest;
 use App\Models\Crianca;
-use App\Services\AcolhimentoProjection;
 use App\Services\AuditRecorder;
+use App\Services\CriancaSituacaoQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -21,20 +23,22 @@ class SearchController extends Controller
 
     public function __construct(
         private AuditRecorder $audit,
-        private AcolhimentoProjection $acolhimentoProjection,
+        private CriancaSituacaoQuery $situacaoQuery,
     ) {}
 
-    public function store(Request $request): RedirectResponse
+    public function store(StoreProtectedSearchRequest $request): RedirectResponse
     {
-        $this->authorize('viewAny', Crianca::class);
-
-        $validated = $request->validate([
-            'q' => ['required', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
         $term = trim($validated['q']);
+        $situacao = CriancaSituacaoFiltro::tryFrom($validated['situacao'] ?? 'todos')
+            ?? CriancaSituacaoFiltro::Todos;
 
         if ($term === '') {
-            return redirect()->route('busca', status: 303);
+            $parameters = array_key_exists('situacao', $validated)
+                ? ['situacao' => $situacao->value]
+                : [];
+
+            return redirect()->route('busca', $parameters, 303);
         }
 
         $now = now();
@@ -47,21 +51,46 @@ class SearchController extends Controller
         $searches = array_slice($searches, -self::MAX_SEARCHES_PER_SESSION, null, true);
         $request->session()->put(self::SEARCHES_SESSION_KEY, $searches);
 
-        return redirect()->route('busca', ['searchId' => $searchId], 303);
+        $parameters = ['searchId' => $searchId];
+
+        if (array_key_exists('situacao', $validated)) {
+            $parameters['situacao'] = $situacao->value;
+        }
+
+        return redirect()->route('busca', $parameters, 303);
     }
 
     public function index(Request $request, ?string $searchId = null): Response|RedirectResponse
     {
         $this->authorize('viewAny', Crianca::class);
 
-        if ($request->query->has('q')) {
+        $rawSituation = $request->query('situacao', 'todos');
+        $situacao = is_string($rawSituation)
+            ? CriancaSituacaoFiltro::tryFrom($rawSituation)
+            : null;
+
+        if ($situacao === null) {
             return redirect()->route('busca', $searchId === null ? [] : ['searchId' => $searchId], 303);
+        }
+
+        if ($request->query->has('q')) {
+            $parameters = $searchId === null ? [] : ['searchId' => $searchId];
+
+            if ($request->query->has('situacao')) {
+                $parameters['situacao'] = $situacao->value;
+            }
+
+            return redirect()->route('busca', $parameters, 303);
         }
 
         if ($searchId === null) {
             $request->session()->put(self::SEARCHES_SESSION_KEY, $this->activeSearches($request, now()->getTimestamp()));
 
-            return Inertia::render('Busca', ['criancas' => null]);
+            return Inertia::render('Busca', [
+                'criancas' => null,
+                'situacao' => $situacao->value,
+                'filtrosSituacao' => [],
+            ]);
         }
 
         if (preg_match('/\A[a-zA-Z0-9]{64}\z/', $searchId) !== 1) {
@@ -78,11 +107,7 @@ class SearchController extends Controller
 
         $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search['term']).'%';
 
-        $criancas = Crianca::query()
-            ->select([
-                'id', 'nome_completo', 'data_nascimento', 'processo_numero',
-                'data_acolhimento', 'motivo_acolhimento', 'status',
-            ])
+        $scopedChildren = $this->situacaoQuery->scopedChildren()
             ->where(function ($where) use ($like) {
                 $where->where('nome_completo', 'like', $like)
                     ->orWhere('nome_social', 'like', $like)
@@ -92,13 +117,23 @@ class SearchController extends Controller
                     ->orWhere('nome_mae', 'like', $like)
                     ->orWhere('nome_pai', 'like', $like)
                     ->orWhere('responsavel_legal', 'like', $like);
-            })
-            ->with('ultimoAcolhimento.ultimaMovimentacao')
+            });
+        $counts = $this->situacaoQuery->counts($scopedChildren);
+        $query = $this->situacaoQuery->filter($scopedChildren, $situacao)
+            ->select([
+                'id', 'nome_completo', 'data_nascimento', 'processo_numero',
+                'data_acolhimento', 'motivo_acolhimento', 'status',
+            ])
             ->withCount(['pias', 'reports', 'visitasTecnicas', 'pertences'])
             ->orderBy('nome_completo')
+            ->orderBy('id');
+        $this->situacaoQuery->addProjection($query);
+
+        $criancas = $query
             ->paginate(15)
+            ->appends(['situacao' => $situacao->value])
             ->through(function (Crianca $crianca): array {
-                $projection = $this->acolhimentoProjection->summaryForChild($crianca);
+                $projection = $this->situacaoQuery->summary($crianca);
 
                 return [
                     'id' => $crianca->id,
@@ -115,9 +150,24 @@ class SearchController extends Controller
             })
             ->withPath(route('busca', ['searchId' => $searchId]));
 
+        $filtrosSituacao = array_map(
+            fn (array $option): array => [
+                ...$option,
+                'href' => route('busca', [
+                    'searchId' => $searchId,
+                    'situacao' => $option['value'],
+                ]),
+            ],
+            $this->situacaoQuery->options($counts),
+        );
+
         $this->audit->record('search.executed', 'success', $request->user());
 
-        return Inertia::render('Busca', ['criancas' => $criancas]);
+        return Inertia::render('Busca', [
+            'criancas' => $criancas,
+            'situacao' => $situacao->value,
+            'filtrosSituacao' => $filtrosSituacao,
+        ]);
     }
 
     /**

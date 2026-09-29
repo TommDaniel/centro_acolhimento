@@ -222,9 +222,10 @@ Transformar a POC em um sistema de produção seguro e auditável que:
   - Não sobrescrever fatos antigos ao atualizar a situação atual.
   - Aceite: é possível registrar acolhimento → evasão → retorno → internação → retorno → desacolhimento, vendo toda a linha do tempo e o estado atual correto.
 
-- [ ] **ACO-02 — Adicionar filtros Acolhidos, Desacolhidos, Evadidos e Internados** (P1, M; depende de `ACO-01` e `DEC-01A`)
-  - Exibir os quatro filtros pedidos, mais “Todos”, com contagem por situação.
-  - Preservar busca, filtro e paginação na URL.
+- [x] **ACO-02 — Adicionar filtros Acolhidos, Desacolhidos, Evadidos e Internados** (P1, M; depende de `ACO-01` e `DEC-01A`)
+  - Exibir os quatro filtros pedidos, mais “Todos”, “A conferir” e “Sem ingresso”, com contagens mutuamente exclusivas. Conforme decisão do responsável, “Acolhidos” significa `na_unidade`; evasão e internação permanecem episódios abertos, mas aparecem apenas em seus filtros próprios. Se houver total de episódios abertos, mostrá-lo separadamente da contagem “Acolhidos”.
+  - “A conferir” reúne cadastros anteriores sem episódio validado identificáveis pelos dados legados de ingresso; “Sem ingresso” reúne cadastros sem episódio e sem esses dados. Ambos aparecem também em “Todos”, sem inferir situação a partir do campo legado `status`. Havendo episódio, a classificação sempre deriva do episódio/movimentação vigente. Se um registro antigo tiver somente o valor padrão `status=acolhida`, não há marcador confiável para distingui-lo de um cadastro novo: tratá-lo como “Sem ingresso” e sinalizar a limitação para reconciliação futura, sem inventar proveniência por data de criação.
+  - Preservar filtro permitido e paginação na URL. A busca conserva o termo somente no POST/sessão e usa a referência opaca existente na URL; nunca colocar nome, processo ou outro termo sensível em `q`, path, links de paginação ou referrer.
   - Definir rótulos inclusivos e consistentes em toda a interface.
   - Aceite: cada registro aparece em exatamente o filtro definido pelas regras de `DEC-01A`; contagens batem com consulta de banco e há teste automatizado para todas as transições. A decisão restante de casas em `DEC-01` não bloqueia esses filtros.
 

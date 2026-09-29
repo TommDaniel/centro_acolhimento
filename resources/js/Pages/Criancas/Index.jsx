@@ -7,16 +7,19 @@ import PageHeader from '@/Components/PageHeader';
 import CriancaCard from '@/Components/CriancaCard';
 import EmptyState from '@/Components/EmptyState';
 import Paginacao from '@/Components/Paginacao';
+import SituacaoFilter from '@/Components/SituacaoFilter';
 
-export default function Index({ criancas }) {
+export default function Index({ criancas, situacao, filtrosSituacao }) {
     const [busca, setBusca] = useState('');
+    const [filtroCarregando, setFiltroCarregando] = useState(false);
+    const [filtroErro, setFiltroErro] = useState(false);
 
     const enviarBusca = (event) => {
         event.preventDefault();
         const termo = busca.trim();
 
         if (termo !== '') {
-            router.post(route('busca.search'), { q: termo });
+            router.post(route('busca.search'), { q: termo, situacao });
         }
     };
 
@@ -73,10 +76,23 @@ export default function Index({ criancas }) {
                 </Button>
             </Box>
 
+            <SituacaoFilter
+                options={filtrosSituacao}
+                active={situacao}
+                loading={filtroCarregando}
+                error={filtroErro}
+                onStart={() => {
+                    setFiltroErro(false);
+                    setFiltroCarregando(true);
+                }}
+                onFinish={() => setFiltroCarregando(false)}
+                onError={() => setFiltroErro(true)}
+            />
+
             {criancas.data.length === 0 ? (
                 <EmptyState
-                    titulo="Nenhum cadastro encontrado"
-                    mensagem="Registre uma nova pessoa para começar."
+                    titulo="Nenhum cadastro nesta situação"
+                    mensagem="Escolha outro filtro ou registre uma nova pessoa."
                 />
             ) : (
                 <Box

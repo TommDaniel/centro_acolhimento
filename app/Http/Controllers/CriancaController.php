@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateCrianca;
 use App\Actions\StorePrivatePortrait;
 use App\Actions\UpdateCrianca;
+use App\Enums\CriancaSituacaoFiltro;
 use App\Http\Requests\UpsertCriancaRequest;
 use App\Models\Acolhimento;
 use App\Models\Crianca;
@@ -12,6 +13,7 @@ use App\Models\CriancaDocumento;
 use App\Models\Familiar;
 use App\Services\AcolhimentoProjection;
 use App\Services\AuditRecorder;
+use App\Services\CriancaSituacaoQuery;
 use App\Services\PrivatePortraitStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,24 +30,44 @@ class CriancaController extends Controller
         private PrivatePortraitStorage $privatePortraits,
         private AuditRecorder $audit,
         private AcolhimentoProjection $acolhimentoProjection,
+        private CriancaSituacaoQuery $situacaoQuery,
     ) {}
 
     public function index(Request $request): Response|RedirectResponse
     {
         $this->authorize('viewAny', Crianca::class);
 
-        if ($request->query->has('q')) {
+        $rawSituation = $request->query('situacao', 'todos');
+        $situacao = is_string($rawSituation)
+            ? CriancaSituacaoFiltro::tryFrom($rawSituation)
+            : null;
+
+        if ($situacao === null) {
             return redirect()->route('criancas.index', status: 303);
         }
 
-        $criancas = Crianca::query()
-            ->with('ultimoAcolhimento.ultimaMovimentacao')
+        if ($request->query->has('q')) {
+            $parameters = $request->query->has('situacao')
+                ? ['situacao' => $situacao->value]
+                : [];
+
+            return redirect()->route('criancas.index', $parameters, 303);
+        }
+
+        $scopedChildren = $this->situacaoQuery->scopedChildren();
+        $counts = $this->situacaoQuery->counts($scopedChildren);
+        $query = $this->situacaoQuery->filter($scopedChildren, $situacao)
             ->orderBy('nome_completo')
+            ->orderBy('id')
             ->select([
                 'id', 'nome_completo', 'data_nascimento', 'processo_numero', 'foto',
                 'data_acolhimento', 'motivo_acolhimento', 'status',
-            ])
+            ]);
+        $this->situacaoQuery->addProjection($query);
+
+        $criancas = $query
             ->paginate(12)
+            ->appends(['situacao' => $situacao->value])
             ->through(function (Crianca $crianca): array {
                 $this->withPortraitUrl($crianca);
 
@@ -55,11 +77,23 @@ class CriancaController extends Controller
                     'data_nascimento' => $crianca->data_nascimento?->toDateString(),
                     'processo_numero' => $crianca->processo_numero,
                     'foto_url' => $crianca->getAttribute('foto_url'),
-                    ...$this->acolhimentoProjection->summaryForChild($crianca),
+                    ...$this->situacaoQuery->summary($crianca),
                 ];
             });
 
-        return Inertia::render('Criancas/Index', compact('criancas'));
+        $filtrosSituacao = array_map(
+            fn (array $option): array => [
+                ...$option,
+                'href' => route('criancas.index', ['situacao' => $option['value']]),
+            ],
+            $this->situacaoQuery->options($counts),
+        );
+
+        return Inertia::render('Criancas/Index', [
+            'criancas' => $criancas,
+            'situacao' => $situacao->value,
+            'filtrosSituacao' => $filtrosSituacao,
+        ]);
     }
 
     public function create()
